@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GENOMA // Demo</title>
+  <style>
+    :root {
+      --black: #000;
+      --white: #fff;
+      --line: 3px;
+      --thin: 1px;
+      --max: 1180px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--white);
+      color: var(--black);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      text-transform: uppercase;
+    }
+
+    a,
+    button {
+      color: inherit;
+      font: inherit;
+      text-transform: inherit;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    .shell {
+      width: min(100%, var(--max));
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    header {
+      border-bottom: var(--line) solid var(--black);
+    }
+
+    .top {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 8vw, 84px);
+      line-height: 0.9;
+      font-weight: 950;
+    }
+
+    .nav {
+      display: flex;
+      border: var(--line) solid var(--black);
+    }
+
+    .nav a {
+      min-height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 10px 14px;
+      border-right: var(--thin) solid var(--black);
+      font-size: 12px;
+      font-weight: 950;
+      text-align: center;
+    }
+
+    .nav a:last-child {
+      border-right: 0;
+    }
+
+    .nav a:hover {
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      border: var(--line) solid var(--black);
+      background: var(--white);
+    }
+
+    .panel-head {
+      border-bottom: var(--line) solid var(--black);
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .links {
+      display: grid;
+    }
+
+    .links a,
+    .links button {
+      min-height: 52px;
+      border: 0;
+      border-bottom: var(--thin) solid var(--black);
+      background: var(--white);
+      color: var(--black);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.2;
+      font-weight: 950;
+      text-align: left;
+    }
+
+    .links a:last-child,
+    .links button:last-child {
+      border-bottom: 0;
+    }
+
+    .links a:hover,
+    .links button:hover,
+    .links a.active,
+    .links button.active {
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .stage {
+      min-height: 680px;
+      display: grid;
+      grid-template-rows: 46px minmax(0, 1fr);
+    }
+
+    .stage-head {
+      border-bottom: var(--line) solid var(--black);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .stage-head a:hover {
+      text-decoration: underline;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--white);
+      display: block;
+    }
+
+    .video {
+      aspect-ratio: 16 / 9;
+      border-bottom: var(--line) solid var(--black);
+      background: var(--black);
+    }
+
+    .video iframe {
+      height: 100%;
+    }
+
+    .summary {
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 800;
+      text-transform: none;
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        padding: 12px;
+      }
+
+      .top,
+      .layout {
+        display: block;
+      }
+
+      .nav {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .nav a {
+        border-right: 0;
+        border-bottom: var(--thin) solid var(--black);
+      }
+
+      .nav a:last-child {
+        border-bottom: 0;
+      }
+
+      .panel {
+        margin-bottom: 14px;
+      }
+
+      .stage {
+        min-height: auto;
+        display: block;
+      }
+
+      .stage iframe#artifact-frame {
+        display: none;
+      }
+
+      .stage-head {
+        min-height: 48px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell top">
+      <h1>DEMO</h1>
+      <nav class="nav" aria-label="Navigation">
+        <a href="index.html">Hub</a>
+        <a href="video.html">Video</a>
+        <a href="g2.html">G2</a>
+        <a href="g1.html">G1</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell layout">
+    <aside class="panel">
+      <div class="panel-head">Run Order</div>
+      <div class="links">
+        <button class="active" type="button" data-src="g2.html" data-title="G2 // Context Genetics Engine">1. G2 Workbench</button>
+        <button type="button" data-src="g1.html" data-title="G1 // Earlier Engine">2. G1 Engine</button>
+        <button type="button" data-src="pbre.html" data-title="Prompt Breeder">3. Prompt Breeder</button>
+        <button type="button" data-src="phub.html" data-title="Prompt Husbandry">4. Prompt Husbandry</button>
+        <button type="button" data-src="f4.html" data-title="F4">5. F4</button>
+        <button type="button" data-src="scope.html" data-title="GENOMA Scope">6. Scope</button>
+        <a href="https://www.youtube.com/watch?v=d5u3zSgpqwc">7. YouTube</a>
+      </div>
+    </aside>
+
+    <section class="panel stage">
+      <div class="stage-head">
+        <span id="stage-title">G2 // Context Genetics Engine</span>
+        <a id="stage-open" href="g2.html">Open</a>
+      </div>
+      <iframe id="artifact-frame" src="g2.html" title="Demo artifact frame"></iframe>
+    </section>
+
+    <section class="panel" style="grid-column: 1 / -1;">
+      <div class="panel-head">Project Video</div>
+      <div class="video">
+        <iframe
+          src="https://www.youtube.com/embed/d5u3zSgpqwc"
+          title="Context Genetics Engine video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <div class="summary">
+        Use this page for judging or sharing: it gives a clean run order, direct artifact links, a desktop preview frame, and the embedded project video.
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const frame = document.getElementById("artifact-frame");
+    const title = document.getElementById("stage-title");
+    const open = document.getElementById("stage-open");
+
+    document.querySelectorAll("[data-src]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-src]").forEach((node) => node.classList.remove("active"));
+        button.classList.add("active");
+        const src = button.getAttribute("data-src");
+        frame.src = src;
+        open.href = src;
+        title.textContent = button.getAttribute("data-title");
+      });
+    });
+  </script>
+</body>
+</html>
