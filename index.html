@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GENOMA // Context Genetics Suite</title>
+  <style>
+    :root {
+      --black: #000;
+      --white: #fff;
+      --line: 3px;
+      --thin: 1px;
+      --max: 1180px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--white);
+      color: var(--black);
+    }
+
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--white);
+      color: var(--black);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    a,
+    button {
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .shell {
+      width: min(100%, var(--max));
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .hero {
+      border-bottom: var(--line) solid var(--black);
+      background: var(--white);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 7vw, 78px);
+      line-height: 0.9;
+      font-weight: 950;
+    }
+
+    .kicker {
+      margin: 12px 0 0;
+      max-width: 760px;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 850;
+      text-transform: none;
+    }
+
+    .rule-box {
+      border: var(--line) solid var(--black);
+      padding: 12px;
+      width: min(310px, 100%);
+      font-size: 11px;
+      line-height: 1.35;
+      font-weight: 900;
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: var(--line) solid var(--black);
+    }
+
+    .actions a {
+      min-height: 52px;
+      display: grid;
+      place-items: center;
+      padding: 12px;
+      border-right: var(--thin) solid var(--black);
+      font-size: 12px;
+      line-height: 1.2;
+      font-weight: 950;
+      text-align: center;
+      background: var(--white);
+      color: var(--black);
+    }
+
+    .actions a:last-child {
+      border-right: 0;
+    }
+
+    .actions a:hover,
+    .actions a:focus-visible {
+      background: var(--black);
+      color: var(--white);
+      outline: none;
+    }
+
+    .main {
+      flex: 1;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: end;
+      padding-bottom: 12px;
+      border-bottom: var(--line) solid var(--black);
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .section-head p {
+      margin: 0;
+      max-width: 520px;
+      font-size: 11px;
+      line-height: 1.35;
+      font-weight: 800;
+      text-align: right;
+      text-transform: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: var(--line) solid var(--black);
+      background: var(--white);
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card.primary {
+      grid-column: span 2;
+    }
+
+    .card-top {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      border-bottom: var(--line) solid var(--black);
+    }
+
+    .code {
+      display: grid;
+      place-items: center;
+      border-right: var(--line) solid var(--black);
+      font-size: 18px;
+      font-weight: 950;
+      min-height: 74px;
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .title {
+      min-width: 0;
+      padding: 13px 14px;
+    }
+
+    .title h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.1;
+      font-weight: 950;
+    }
+
+    .title span {
+      display: block;
+      margin-top: 7px;
+      font-size: 10px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .card-body {
+      flex: 1;
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 750;
+      text-transform: none;
+    }
+
+    .links {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: var(--line) solid var(--black);
+    }
+
+    .links a,
+    .links button {
+      min-height: 46px;
+      border: 0;
+      border-right: var(--thin) solid var(--black);
+      background: var(--white);
+      color: var(--black);
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 950;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .links a:last-child,
+    .links button:last-child {
+      border-right: 0;
+    }
+
+    .links a:hover,
+    .links button:hover,
+    .links a:focus-visible,
+    .links button:focus-visible {
+      background: var(--black);
+      color: var(--white);
+      outline: none;
+    }
+
+    .preview {
+      margin-top: 18px;
+      border: var(--line) solid var(--black);
+      min-height: 520px;
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+      background: var(--white);
+    }
+
+    .preview-head {
+      border-bottom: var(--line) solid var(--black);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .preview-head a {
+      border-left: var(--thin) solid var(--black);
+      padding-left: 12px;
+    }
+
+    .preview-head a:hover {
+      text-decoration: underline;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 478px;
+      border: 0;
+      background: var(--white);
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        padding: 14px;
+      }
+
+      .hero-grid,
+      .section-head {
+        display: block;
+      }
+
+      .rule-box {
+        width: 100%;
+        margin-top: 14px;
+      }
+
+      .actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .actions a {
+        border-bottom: var(--thin) solid var(--black);
+      }
+
+      .actions a:nth-child(2n) {
+        border-right: 0;
+      }
+
+      .section-head p {
+        max-width: none;
+        text-align: left;
+        margin-top: 8px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card.primary {
+        grid-column: auto;
+      }
+
+      .preview {
+        display: none;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .shell {
+        padding: 12px;
+      }
+
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .actions a {
+        border-right: 0;
+      }
+
+      .card-top {
+        grid-template-columns: 58px minmax(0, 1fr);
+      }
+
+      .code {
+        font-size: 15px;
+        min-height: 66px;
+      }
+
+      .links {
+        grid-template-columns: 1fr;
+      }
+
+      .links a,
+      .links button {
+        border-right: 0;
+        border-bottom: var(--thin) solid var(--black);
+      }
+
+      .links a:last-child,
+      .links button:last-child {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <h1>GENOMA</h1>
+        </div>
+        <div class="rule-box">
+          Context Genetics Engine<br>Wolf To Dog
+        </div>
+      </div>
+    </header>
+
+    <nav class="actions" aria-label="Fast links">
+      <a href="g2.html">Open G2</a>
+      <a href="g1.html">Open G1</a>
+      <a href="video.html">Video</a>
+      <a href="suite-harness-g2.html">G2 Harness</a>
+    </nav>
+
+    <main class="main">
+      <section class="shell">
+        <div class="section-head">
+          <h2>Pages</h2>
+        </div>
+
+        <div class="grid">
+          <article class="card primary">
+            <div class="card-top">
+              <div class="code">G2</div>
+              <div class="title">
+                <h3>Context Genetics Engine</h3>
+                <span>Primary workbench</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="g2.html">Open Raw</a>
+              <button type="button" data-preview="g2.html" data-label="G2 // Context Genetics Engine">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">G1</div>
+              <div class="title">
+                <h3>G1 Engine</h3>
+                <span>Trace-rich prototype</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="g1.html">Open Raw</a>
+              <button type="button" data-preview="g1.html" data-label="G1 Engine">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">PBR</div>
+              <div class="title">
+                <h3>Prompt Breeder</h3>
+                <span>Specimen extraction</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="pbre.html">Open Raw</a>
+              <button type="button" data-preview="pbre.html" data-label="PBRE // Prompt Breeder">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">PHB</div>
+              <div class="title">
+                <h3>Prompt Husbandry</h3>
+                <span>Genotype transcription</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="phub.html">Open Raw</a>
+              <button type="button" data-preview="phub.html" data-label="PHUB // Prompt Husbandry">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">F4</div>
+              <div class="title">
+                <h3>F4</h3>
+                <span>Deep vocabulary engine</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="f4.html">Open Raw</a>
+              <button type="button" data-preview="f4.html" data-label="F4">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">SCP</div>
+              <div class="title">
+                <h3>GENOMA Scope</h3>
+                <span>Visualization component</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="scope.html">Open Raw</a>
+              <button type="button" data-preview="scope.html" data-label="SCOPE // Genome Field">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">H2</div>
+              <div class="title">
+                <h3>G2 Harness</h3>
+                <span>Side rail launcher</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="suite-harness-g2.html">Open</a>
+              <button type="button" data-preview="suite-harness-g2.html" data-label="Harness // G2">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">H1</div>
+              <div class="title">
+                <h3>G1 Harness</h3>
+                <span>Side rail launcher</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="suite-harness-g1.html">Open</a>
+              <button type="button" data-preview="suite-harness-g1.html" data-label="Harness // G1">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">VID</div>
+              <div class="title">
+                <h3>Video</h3>
+                <span>Demo</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="video.html">Open</a>
+              <button type="button" data-preview="video.html" data-label="Video">Preview</button>
+            </div>
+          </article>
+        </div>
+
+        <section class="preview" aria-label="Desktop preview">
+          <div class="preview-head">
+            <span id="preview-label">Preview // G2 // Context Genetics Engine</span>
+            <a id="preview-open" href="g2.html">Open Current</a>
+          </div>
+          <iframe id="preview-frame" src="g2.html" title="Selected artifact preview"></iframe>
+        </section>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const previewFrame = document.getElementById("preview-frame");
+    const previewLabel = document.getElementById("preview-label");
+    const previewOpen = document.getElementById("preview-open");
+
+    document.querySelectorAll("[data-preview]").forEach((control) => {
+      control.addEventListener("click", () => {
+        const src = control.getAttribute("data-preview");
+        const label = control.getAttribute("data-label");
+        previewFrame.src = src;
+        previewOpen.href = src;
+        previewLabel.textContent = `Preview // ${label}`;
+        document.querySelector(".preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  </script>
+</body>
+</html>

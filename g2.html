@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Context Genetics Engine</title>
+<style>
+/* ═══════════════════════════════════
+   DESIGN SYSTEM (v8.9 - FIXED DOCKABLE ALLEYS)
+═══════════════════════════════════ */
+:root {
+  --paper: #fafaf8;
+  --ink: #111111;
+  --soft: #e9e8e2;
+  --rule: #d4d3cc;
+  --muted: #888888;
+  
+  /* System Colors */
+  --teal: #0ea5e9;
+  --orange: #f97316;
+  --exon: #16a34a;
+  --danger: #dc2626;
+
+  /* Locus Chromatic Map */
+  --c-rsn: #0284c7; 
+  --c-evd: #16a34a; 
+  --c-flr: #dc2626; 
+  --c-fit: #9333ea; 
+  --c-out: #475569; 
+  --c-cst: #9ca3af; 
+
+  --footer-h: 104px; 
+  --col-w: 420px; /* STRICT FIXED WIDTH */
+  --alley-w: 48px; /* Collapsed width */
+
+  --mono: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: var(--soft); /* The empty space background */
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  text-transform: uppercase;
+  overscroll-behavior: none;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--soft); }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::selection { background: var(--teal); color: #fff; }
+
+button, select, input, textarea {
+  font: inherit; color: inherit; border-radius: 0; outline: none;
+  letter-spacing: inherit; text-transform: inherit;
+}
+
+/* ═══════════════════════════════════
+   APP SHELL & HUD
+═══════════════════════════════════ */
+.app {
+  height: 100dvh; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.hud {
+  display: flex; flex-direction: column;
+  border-bottom: 2px solid var(--ink); background: var(--paper);
+  position: relative; z-index: 40; flex-shrink: 0;
+}
+
+.deck-top {
+  display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  background: var(--ink); color: var(--paper);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; min-height: 40px;
+  flex-shrink: 0;
+}
+.deck-top-spacer { flex: 1; }
+
+.top-badge {
+  padding: 0 8px; min-height: 24px; background: var(--paper); color: var(--ink);
+  font-size: 10px; font-weight: 950; letter-spacing: 0.06em; display: flex; align-items: center; border-radius: 2px;
+}
+
+/* GLOBAL PINNED STATUS */
+.global-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; min-height: 24px; font-size: 11px; font-weight: 800;
+  border-left: 1px solid rgba(255,255,255,0.2); border-right: 1px solid rgba(255,255,255,0.2);
+  color: var(--teal);
+}
+.global-status.busy { color: var(--orange); }
+
+.loader-icon {
+  width: 10px; height: 10px; border: 2px solid currentColor; 
+  border-top-color: transparent; border-radius: 50%; 
+  animation: spin 0.7s linear infinite; display: none;
+}
+.global-status.busy .loader-icon { display: block; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.top-tool {
+  padding: 0 12px; min-height: 28px; background: transparent; border: 1px solid rgba(255,255,255,0.25);
+  color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; cursor: pointer; transition: 0.2s; border-radius: 2px;
+}
+.top-tool:hover { background: var(--teal); border-color: var(--teal); }
+
+/* ── OMNIPRESENT MINIMAP ── */
+.minimap {
+  display: flex; background: var(--soft); border-bottom: 1px solid var(--rule);
+  padding: 6px 12px; gap: 8px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+}
+.minimap::-webkit-scrollbar { display: none; }
+
+.mm-node {
+  display: flex; align-items: center; gap: 6px; padding: 6px 16px; 
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;
+  font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: 0.2s;
+  min-width: max-content; justify-content: center; min-height: 32px;
+  opacity: 0.5; color: var(--ink);
+}
+.mm-node:hover { border-color: var(--ink); opacity: 0.8; }
+.mm-node.active { background: var(--ink); color: var(--paper); border-color: var(--ink); opacity: 1; }
+
+.mm-dot { width: 8px; height: 8px; border-radius: 50%; transition: 0.3s; background: var(--muted); }
+.mm-node[data-state="loading"] .mm-dot { background: var(--teal); animation: dot-pulse 0.9s infinite; }
+.mm-node[data-state="armed"] .mm-dot   { background: var(--orange); animation: dot-pulse 2s infinite; }
+.mm-node[data-state="done"] .mm-dot    { background: var(--exon); }
+.mm-node[data-state="error"] .mm-dot   { background: var(--danger); }
+@keyframes dot-pulse { 0%, 100% { transform: scale(0.8); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } }
+
+/* ── SINGLE LINE TRACE ── */
+.single-trace {
+  background: var(--paper); border-bottom: 1px solid var(--rule);
+  padding: 8px 12px; font-size: 11px; font-family: var(--mono);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.trace-label { color: var(--muted); font-weight: 800; }
+.trace-msg { color: var(--ink); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.trace-msg.error { color: var(--danger); }
+.trace-msg.succ { color: var(--exon); }
+
+/* ═══════════════════════════════════
+   WORKSPACE (4-COLUMN ALLEYS)
+═══════════════════════════════════ */
+.workspace {
+  display: flex; flex-direction: row; justify-content: flex-start;
+  width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Expanded Column */
+.column {
+  display: grid; grid-template-rows: 56px auto minmax(0, 1fr) var(--footer-h);
+  border-right: 2px solid var(--ink); background: var(--paper);
+  flex: 0 0 var(--col-w); width: var(--col-w); max-width: var(--col-w); 
+  transition: flex 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden; position: relative;
+}
+
+/* Collapsed Column (The Alley) */
+.column.collapsed {
+  flex: 0 0 var(--alley-w); width: var(--alley-w); max-width: var(--alley-w);
+  grid-template-rows: 1fr; background: var(--ink); color: var(--paper);
+  cursor: pointer; transition: background 0.2s;
+}
+.column.collapsed:hover { background: #333; }
+
+/* Hide standard contents when collapsed */
+.column.collapsed .col-head, 
+.column.collapsed .codon-bar, 
+.column.collapsed .col-body, 
+.column.collapsed .col-foot { 
+  display: none; 
+}
+
+/* Alley Title (Vertical text) */
+.col-alley {
+  display: none; /* hidden when expanded */
+  align-items: center; justify-content: center; flex-direction: row; gap: 12px;
+  height: 100%; width: 100%; writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 14px; font-weight: 800; letter-spacing: 0.1em; white-space: nowrap;
+}
+.column.collapsed .col-alley { display: flex; }
+.alley-num { color: var(--muted); font-size: 11px; }
+
+/* ── COLUMN INTERNALS ── */
+.col-head {
+  border-bottom: 2px solid var(--ink); background: var(--paper);
+  display: flex; align-items: stretch; justify-content: space-between;
+}
+.col-head-left { display: flex; align-items: stretch; flex: 1; overflow: hidden; }
+
+.col-num {
+  font-size: 12px; font-weight: 700; color: var(--muted); width: 48px; flex-shrink: 0;
+  border-right: 1px solid var(--rule); display: grid; place-items: center; background: var(--soft);
+}
+
+.col-title-wrap { padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; white-space: nowrap;}
+.col-name { font-size: 16px; font-weight: 800; letter-spacing: 0.08em; line-height: 1; }
+.col-sub { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: 0.06em; }
+
+.col-collapse-btn {
+  width: 48px; flex-shrink: 0; border-left: 1px solid var(--rule); background: var(--paper);
+  display: grid; place-items: center; font-family: var(--mono); font-weight: 900; font-size: 16px;
+  cursor: pointer; color: var(--muted); transition: 0.2s; border-bottom: none; border-top: none; border-right: none;
+}
+.col-collapse-btn:hover { background: var(--ink); color: var(--paper); }
+
+/* Codon Animation Bar */
+.codon-bar {
+  height: 0; overflow: hidden; border-bottom: 0px solid var(--rule); background: var(--soft);
+  display: flex; align-items: center; padding: 0 16px; gap: 6px;
+  transition: height 0.2s ease, border-bottom-width 0.2s ease; flex-shrink: 0;
+}
+.codon-bar.running { height: 28px; border-bottom-width: 2px; border-color: var(--ink); }
+.cb-label { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--muted); flex-shrink: 0; margin-right: 8px; width: 70px; }
+.cb-gene { height: 8px; border-radius: 4px; animation: codon-wave 1.6s ease-in-out infinite; flex-shrink: 0; transition: width 0.3s; }
+@keyframes codon-wave { 0%, 100% { transform: scaleX(0.35) scaleY(0.7); opacity: 0.25; } 50% { transform: scaleX(1) scaleY(1); opacity: 1; } }
+.cb-gene[data-t="RSN"] { background: var(--c-rsn); width: 32px; } .cb-gene[data-t="EVD"] { background: var(--c-evd); width: 28px; }
+.cb-gene[data-t="OUT"] { background: var(--c-out); width: 24px; } .cb-gene[data-t="FLR"] { background: var(--c-flr); width: 20px; }
+.cb-gene[data-t="FIT"] { background: var(--c-fit); width: 30px; } .cb-gene[data-t="CST"] { background: var(--c-cst); width: 18px; }
+.cb-gene[data-t="N"]   { background: var(--rule); width: 14px; }
+
+/* Column scroll body */
+.col-body {
+  min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px;
+  display: flex; flex-direction: column; gap: 16px;
+  scrollbar-width: thin; scrollbar-color: var(--ink) transparent; position: relative;
+}
+
+/* STRICT 2-ROW FOOTER */
+.col-foot {
+  height: var(--footer-h); border-top: 2px solid var(--ink); background: var(--soft); padding: 12px;
+  display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; justify-content: center;
+}
+
+/* ═══════════════════════════════════
+   BUTTONS
+═══════════════════════════════════ */
+.btn {
+  min-height: 48px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-align: center;
+  padding: 0 12px; font-size: 12px; font-weight: 800; letter-spacing: 0.07em; transition: all 0.1s; width: 100%; border-radius: 2px;
+}
+.btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.btn.primary { background: var(--ink); color: var(--paper); font-size: 13px; }
+.btn.primary:hover:not(:disabled) { background: var(--teal); border-color: var(--teal); }
+.btn.express { background: var(--ink); color: var(--paper); border-color: var(--exon); }
+.btn.express:hover:not(:disabled) { background: var(--exon); border-color: var(--exon); color: var(--paper); }
+.btn.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+.btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn.secondary { border-width: 1px; font-size: 11px; min-height: 36px; }
+.btn.secondary:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* ═══════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════ */
+.sec-wrap { background: var(--paper); border: 2px solid var(--ink); border-radius: 4px; overflow: hidden; box-shadow: 4px 4px 0 rgba(0,0,0,0.05); flex-shrink: 0;}
+.sec-wrap.fill { flex-shrink: 1; flex-grow: 1; display: flex; flex-direction: column; min-height: 200px; }
+
+.sec-head { 
+    font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--ink); 
+    background: var(--soft); padding: 12px 14px; 
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none; transition: 0.2s; border-bottom: 2px solid transparent;
+}
+.sec-head:hover { background: #deddd6; }
+.sec-wrap.open .sec-head { border-bottom: 2px solid var(--ink); }
+.sec-toggle { font-family: var(--mono); font-size: 14px; color: var(--ink); font-weight: 900;}
+.sec-body { display: none; padding: 14px; }
+.sec-wrap.open .sec-body { display: block; }
+.sec-wrap.fill.open .sec-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* NATIVE SCROLL FIX FOR TEXTAREAS */
+.input-box { display: flex; flex-direction: column; width: 100%; border: 1px solid var(--rule); background: var(--paper); flex: 1; min-height: 0;}
+.input-box:focus-within { border-color: var(--teal); }
+.input-box textarea { 
+    border: none; background: transparent; padding: 14px; font-size: 13px; line-height: 1.6; 
+    resize: vertical; overflow-y: auto; min-height: 100px; width: 100%; font-family: var(--sans);
+    flex: 1;
+}
+
+/* VISION TOOL */
+.input-foot { border-top: 1px dashed var(--rule); padding: 8px 12px; display: flex; flex-direction: column; background: var(--soft); gap: 8px; flex-shrink: 0;}
+.vision-rail { display: flex; gap: 6px; overflow-x: auto; width: 100%; min-height: empty: 0;}
+.img-thumb { position: relative; width: 44px; height: 44px; border: 1px solid var(--ink); flex-shrink: 0; }
+.img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.2); }
+.img-kill { position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff; width: 20px; height: 20px; border-radius: 50%; border: none; font-size: 12px; cursor: pointer; display: grid; place-items: center; z-index: 10; }
+
+.vision-dropzone { 
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 44px; border: 2px dashed var(--rule); background: var(--paper); 
+    font-size: 11px; font-weight: 800; color: var(--muted); cursor: pointer; transition: 0.2s; border-radius: 4px;
+}
+.vision-dropzone:hover { border-color: var(--teal); color: var(--teal); background: #f0f9ff; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 2px solid var(--ink); padding: 10px 14px; font-size: 12px; font-weight: 800; letter-spacing: 0.05em; white-space: nowrap; cursor: pointer; background: var(--soft); border-radius: 4px; box-shadow: 2px 2px 0 rgba(0,0,0,0.1); transition: 0.1s;}
+.chip:hover { background: var(--ink); color: var(--paper); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 rgba(0,0,0,0.2);}
+.chip:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(0,0,0,0.2); }
+
+/* ═══════════════════════════════════
+   GENOTYPE: CHROMATIC COLLAPSIBLE CARDS
+═══════════════════════════════════ */
+.gene-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+.gene-card { 
+  display: flex; flex-direction: column; border: 2px solid var(--ink); 
+  background: var(--paper); border-left: 8px solid var(--ink); transition: 0.2s;
+  border-radius: 4px; box-shadow: 3px 3px 0 rgba(0,0,0,0.05); flex-shrink: 0;
+}
+.gene-card.intron { opacity: 0.5; border-style: dashed; box-shadow: none; }
+
+/* Chromatic Borders */
+.gene-card[data-t="RSN"] { border-left-color: var(--c-rsn); }
+.gene-card[data-t="EVD"] { border-left-color: var(--c-evd); }
+.gene-card[data-t="FLR"] { border-left-color: var(--c-flr); }
+.gene-card[data-t="FIT"] { border-left-color: var(--c-fit); }
+.gene-card[data-t="OUT"] { border-left-color: var(--c-out); }
+.gene-card[data-t="CST"] { border-left-color: var(--c-cst); }
+
+.gene-head { 
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer;
+  user-select: none; min-height: 56px; 
+}
+.gene-head:hover { background: var(--soft); }
+
+.gene-idx { font-family: var(--mono); font-size: 12px; font-weight: 800; color: var(--muted); width: 20px; text-align: right;}
+.gene-type { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; width: 40px; }
+
+/* Preview Text (Visible when collapsed) */
+.gene-preview {
+  flex: 1; font-family: var(--sans); font-size: 13px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gene-card.expanded .gene-preview { display: none; }
+
+.gene-ops { display: flex; gap: 6px; margin-left: auto; }
+.op-btn { min-height: 36px; min-width: 36px; border: 2px solid var(--ink); background: var(--paper); font-size: 14px; font-weight: 900; cursor: pointer; display: grid; place-items: center; padding: 0; border-radius: 2px;}
+.op-btn:hover { background: var(--ink); color: var(--paper); }
+.op-btn.active { background: var(--ink); color: var(--paper); }
+.op-btn.del { border-color: var(--danger); color: var(--danger); }
+.op-btn.del:hover { background: var(--danger); color: #fff; }
+
+/* Payload Textarea (Visible when expanded) */
+.gene-body { display: none; padding: 0 14px 14px 14px; }
+.gene-card.expanded .gene-body { display: flex; flex-direction: column; }
+.gene-payload { 
+  width: 100%; background: var(--paper); border: 2px solid var(--rule); padding: 14px; 
+  font-size: 14px; resize: vertical; overflow-y: auto; min-height: 80px;
+  line-height: 1.6; font-family: var(--mono); color: var(--ink);
+}
+.gene-payload:focus { border-color: var(--teal); outline: none; }
+
+/* Select Bank */
+.select {
+  width: 100%; min-height: 52px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink);
+  padding: 0 14px; text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+  cursor: pointer; display: block; font-family: var(--mono);
+}
+
+/* ═══════════════════════════════════
+   MATRIX MODAL (PUNNETT)
+═══════════════════════════════════ */
+.punnett-wrapper { width: 100%; border: 2px solid var(--ink); background: var(--ink); padding: 4px; box-shadow: 4px 4px 0 rgba(0,0,0,0.1); flex-shrink:0;}
+.punnett-grid {
+    display: grid; grid-template-columns: 28px 1fr 1fr; grid-template-rows: 28px 1fr 1fr;
+    gap: 4px; background-color: var(--ink);
+}
+.punnett-cell { 
+    background-color: var(--paper); padding: 16px; cursor: pointer; transition: background 0.1s; 
+    display: flex; flex-direction: column; gap: 8px; overflow: hidden; min-height: 140px;
+}
+.punnett-cell:hover { background-color: var(--soft); }
+.punnett-header { 
+    background-color: var(--ink); color: var(--paper); font-size: 11px; display: flex; 
+    align-items: center; justify-content: center; text-align: center; padding: 8px; overflow: hidden; line-height: 1.3;
+}
+.punnett-header.vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
+.punnett-corner { background-color: var(--ink); }
+
+.p-trait { font-size: 12px; font-weight: 900; color: var(--orange); letter-spacing: 0.05em;}
+.p-desc { font-family: var(--sans); font-size: 13px; line-height: 1.5; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;}
+.p-genes { font-size: 11px; color: var(--muted); margin-top: auto; font-weight: 700; }
+
+/* Matrix Lock Overlay */
+.matrix-lock {
+  position: absolute; inset: 0; z-index: 10;
+  background: rgba(250, 250, 248, 0.95); backdrop-filter: blur(8px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 24px; color: var(--ink);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.05em; border-top: 1px dashed var(--rule);
+}
+.lock-icon {
+  font-size: 24px; margin-bottom: 12px; font-weight: 900; border: 2px solid var(--ink);
+  width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%;
+}
+
+/* Phenotype Out */
+.pheno-wrap { border: 2px solid var(--ink); overflow-y: auto; background: #fff; flex: 1; min-height: 120px;}
+.pheno-inner { padding: 16px; font-family: var(--sans); font-size: 14px; line-height: 1.6; color: #111; white-space: pre-wrap;}
+
+/* Modals */
+.modal { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 100; display: none; place-items: center; padding: 20px; }
+.modal.active { display: grid; }
+.modal-box { background: var(--paper); border: 2px solid var(--ink); width: 100%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 8px 8px 0 rgba(0,0,0,0.15);}
+.modal-head { border-bottom: 2px solid var(--ink); padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: 800; background: var(--soft); flex-shrink: 0; }
+.modal-body { padding: 24px; overflow-y: auto; flex: 1; font-family: var(--sans); font-size: 14px; line-height: 1.6; display: flex; flex-direction: column; gap: 16px;}
+
+@media (max-width: 760px) {
+  :root { --col-w: 100vw; }
+  .deck-top { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .global-status { border-right: none; }
+  /* On mobile, un-collapsible behavior is preferred for standard snapping */
+  .workspace { scroll-snap-type: x mandatory; }
+  .column { scroll-snap-align: start; flex: 0 0 100vw; max-width: 100vw; }
+  .col-collapse-btn { display: none; } /* Hide collapse on purely mobile */
+}
+</style>
+</head>
+<body>
+
+<main class="app">
+
+  <!-- ═════════════════════════════════
+    HUD / HEADER (SINGLE PINNED TRACE)
+  ═════════════════════════════════ -->
+  <header class="hud">
+    <div class="deck">
+      <div class="deck-top">
+        <span style="color:rgba(255,255,255,0.4); font-size:11px; letter-spacing:0.05em;">CGE v8.9</span>
+        <div class="top-badge" id="session-id-display">INST-0000</div>
+        
+        <!-- PINNED GLOBAL STATUS -->
+        <div class="global-status" id="sys-status-text">
+            <div id="sys-loader-icon" class="loader-icon"></div>
+            <span>SYSTEM: IDLE</span>
+        </div>
+
+        <div class="deck-top-spacer"></div>
+        <button class="top-tool" onclick="showHelp()">HELP</button>
+        <button class="top-tool" onclick="importGenome()">IMPORT</button>
+        <button class="top-tool" onclick="prepareExport()">EXPORT</button>
+      </div>
+
+      <!-- OMNIPRESENT MINIMAP / TABS -->
+      <nav class="minimap" id="global-minimap">
+        <button class="mm-node active" id="mm-node-palette" onclick="toggleColumn('palette')">
+            <div class="mm-dot"></div>01 PALETTE
+        </button>
+        <button class="mm-node active" id="mm-node-genotype" onclick="toggleColumn('genotype')">
+            <div class="mm-dot"></div>02 GENOTYPE
+        </button>
+        <button class="mm-node" id="mm-node-matrix" onclick="toggleColumn('matrix')">
+            <div class="mm-dot"></div>03 MATRIX
+        </button>
+        <button class="mm-node" id="mm-node-field" onclick="toggleColumn('field')">
+            <div class="mm-dot"></div>04 FIELD
+        </button>
+      </nav>
+
+      <!-- SINGLE LINE TRACE LOG (NO STACK) -->
+      <div class="single-trace">
+          <span class="trace-label">&gt; LATEST TRACE:</span>
+          <span class="trace-msg" id="single-trace-msg">System initialized and ready for input.</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═════════════════════════════════
+    WORKSPACE (4-COLUMN ALLEYS)
+  ═════════════════════════════════ -->
+  <section class="workspace" id="workspace">
+
+    <!-- ── COLUMN 01: PALETTE ── -->
+    <article class="column" data-col="palette" id="col-palette">
+      <!-- Alley View (Collapsed) -->
+      <div class="col-alley" onclick="toggleColumn('palette')">
+          <span class="alley-num">01</span>
+          <span class="alley-title">PALETTE</span>
+      </div>
+
+      <!-- Main View (Expanded) -->
+      <div class="col-head">
+        <div class="col-head-left">
+            <div class="col-num">01</div>
+            <div class="col-title-wrap">
+            <div class="col-name">Palette</div>
+            <div class="col-sub">Synthesis & Injection</div>
+            </div>
+        </div>
+        <button class="col-collapse-btn" onclick="toggleColumn('palette')" title="Collapse Panel">[ - ]</button>
+      </div>
+        
+      <div class="codon-bar" id="cb-palette">
+        <div class="cb-label">PROCESSING</div>
+        <div class="cb-gene" data-t="RSN" style="animation-delay:0s"></div>
+        <div class="cb-gene" data-t="EVD" style="animation-delay:0.12s"></div>
+        <div class="cb-gene" data-t="OUT" style="animation-delay:0.24s"></div>
+        <div class="cb-gene" data-t="FLR" style="animation-delay:0.36s"></div>
+        <div class="cb-gene" data-t="FIT" style="animation-delay:0.48s"></div>
+      </div>
+
+      <div class="col-body">
+        
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap fill open">
+            <div class="sec-head">
+            AI SYNTHESIS DIRECTIVE
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body" style="padding: 0;">
+                <div class="input-box" style="border: none;">
+                    <textarea id="ai-prompt" placeholder="Describe desired behavior or fitness target...&#10;e.g. &quot;A prompt that summarizes legal documents with evidence citations&quot;"></textarea>
+                    <div class="input-foot">
+                        <div class="vision-rail" id="synthesis-img-preview"></div>
+                        <label class="vision-dropzone">
+                            [+ ATTACH VISION CONTEXT]
+                            <input type="file" id="synthesis-img-upload" accept="image/*" multiple style="display:none;" onchange="handleImageUpload(event,'synthesis')">
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      
+      <div class="col-foot">
+        <button class="btn primary" id="btn-generate" onclick="generateFromAI()">SYNTHESIZE GENOME</button>
+        <div class="btn-row">
+            <button class="btn secondary" id="btn-mutate" onclick="mutateCurrentAI()">MUTATE</button>
+            <button class="btn secondary danger" id="btn-stepping-stone" onclick="mutateSteppingStone()">DIVERGE</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- ── COLUMN 02: GENOTYPE ── -->
+    <article class="column" data-col="genotype" id="col-genotype">
+      <!-- Alley View (Collapsed) -->
+      <div class="col-alley" onclick="toggleColumn('genotype')">
+          <span class="alley-num">02</span>
+          <span class="alley-title">GENOTYPE</span>
+      </div>
+
+      <div class="col-head">
+        <div class="col-head-left">
+            <div class="col-num">02</div>
+            <div class="col-title-wrap">
+            <div class="col-name">Genotype</div>
+            <div class="col-sub">Prompt DNA Sequence</div>
+            </div>
+        </div>
+        <button class="col-collapse-btn" onclick="toggleColumn('genotype')" title="Collapse Panel">[ - ]</button>
+      </div>
+
+      <div class="codon-bar" id="cb-genotype">
+        <div class="cb-label">SEQUENCING</div>
+        <div class="cb-gene" data-t="FIT" style="animation-delay:0s"></div>
+        <div class="cb-gene" data-t="RSN" style="animation-delay:0.11s"></div>
+        <div class="cb-gene" data-t="EVD" style="animation-delay:0.22s"></div>
+      </div>
+
+      <div class="col-body">
+        
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap open">
+            <div class="sec-head">
+            LINEAGE BANK
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body">
+                <div style="display:flex; gap: 8px;">
+                    <select id="genome-bank-select" class="select" style="flex: 1;" onchange="switchActiveGenome(this.value)"></select>
+                    <button class="btn primary" style="width:52px; min-height:52px; padding:0; font-size:18px;" onclick="createNewBlankGenome()" title="Initialize New Lineage">+</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap open">
+            <div class="sec-head">
+            MANUAL INJECTION
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body">
+            <div class="chips">
+                <button class="chip" onclick="addCodon('RSN', 'Construct theory before output.')">RSN</button>
+                <button class="chip" onclick="addCodon('EVD', 'Use only provided source material.')">EVD</button>
+                <button class="chip" onclick="addCodon('OUT', 'Structured markdown output.')">OUT</button>
+                <button class="chip" onclick="addCodon('FLR', 'Convert failure into mutation pressure.')">FLR</button>
+                <button class="chip" onclick="addCodon('FIT', 'Optimize for source fidelity and density.')">FIT</button>
+                <button class="chip" onclick="addCodon('CST', '')">CST</button>
+            </div>
+            </div>
+        </div>
+
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap fill open">
+            <div class="sec-head">
+            ACTIVE DNA SEQUENCE
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body" style="background: var(--soft);">
+            <div style="display:flex; gap:16px; margin-bottom:16px; justify-content: flex-end; font-size:11px; font-weight:800;">
+                <span style="cursor:pointer; color:var(--teal);" onclick="setAllGenesState(true)">[EXPAND ALL]</span>
+                <span style="cursor:pointer; color:var(--muted);" onclick="setAllGenesState(false)">[COLLAPSE ALL]</span>
+            </div>
+            <div class="gene-wrap" id="genome-container"></div>
+            </div>
+        </div>
+      </div>
+
+      <div class="col-foot">
+        <button class="btn primary" onclick="cloneActiveGenome()">CLONE TO NEW LINEAGE</button>
+        <div class="btn-row">
+            <button class="btn secondary" onclick="clearGenome()">CLEAR SEQUENCE</button>
+            <button class="btn secondary danger" onclick="purgeActiveGenome()">PURGE LINEAGE</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- ── COLUMN 03: MATRIX ── -->
+    <article class="column" data-col="matrix" id="col-matrix">
+      <!-- Alley View (Collapsed) -->
+      <div class="col-alley" onclick="toggleColumn('matrix')">
+          <span class="alley-num">03</span>
+          <span class="alley-title">MATRIX</span>
+      </div>
+
+      <div class="col-head">
+        <div class="col-head-left">
+            <div class="col-num">03</div>
+            <div class="col-title-wrap">
+            <div class="col-name">Matrix</div>
+            <div class="col-sub">Mendelian Breeder</div>
+            </div>
+        </div>
+        <button class="col-collapse-btn" onclick="toggleColumn('matrix')" title="Collapse Panel">[ - ]</button>
+      </div>
+
+        <div class="codon-bar" id="cb-matrix">
+            <div class="cb-label">CROSSING</div>
+            <div class="cb-gene" data-t="OUT" style="animation-delay:0s"></div>
+            <div class="cb-gene" data-t="FLR" style="animation-delay:0.2s"></div>
+            <div class="cb-gene" data-t="RSN" style="animation-delay:0.4s"></div>
+        </div>
+  
+        <div class="col-body" id="matrix-body" style="position:relative;">
+            
+            <div id="matrix-lock" class="matrix-lock">
+                <div class="lock-icon">X</div>
+                <div>SEQUENCE REQUIRED TO UNLOCK MATRIX</div>
+                <div style="color:var(--muted); font-weight:normal; margin-top:12px; max-width:400px;">Add DNA instructions to the active lineage to enable F1 Matrix breeding.</div>
+            </div>
+
+            <!-- Strict Collapsible Wrap -->
+            <div class="sec-wrap fill open">
+                <div class="sec-head">
+                    F1 OFFSPRING MATRIX
+                    <span class="sec-toggle">[-]</span>
+                </div>
+                <div class="sec-body" id="punnett-grid-container">
+                    <div style="font-family: var(--sans); font-size: 13px; color: var(--muted); line-height: 1.6;">
+                        Enter a directive in the Palette, then click BREED MATRIX below to cross your active genome with an AI-generated divergent parent.
+                    </div>
+                </div>
+            </div>
+        </div>
+  
+        <div class="col-foot">
+            <button class="btn primary" style="background:var(--orange); color:#000;" id="btn-punnett" onclick="generatePunnettSquare()">BREED PUNNETT MATRIX</button>
+            <div class="btn-row">
+            <button class="btn secondary" onclick="alert('Auto-select WIP')">AUTO-SELECT</button>
+            <button class="btn secondary" onclick="clearMatrix()">CLEAR MATRIX</button>
+            </div>
+        </div>
+      </article>
+
+    <!-- ── COLUMN 04: FIELD ── -->
+    <article class="column" data-col="field" id="col-field">
+      <!-- Alley View (Collapsed) -->
+      <div class="col-alley" onclick="toggleColumn('field')">
+          <span class="alley-num">04</span>
+          <span class="alley-title">FIELD</span>
+      </div>
+
+      <div class="col-head">
+        <div class="col-head-left">
+            <div class="col-num">04</div>
+            <div class="col-title-wrap">
+            <div class="col-name">Field</div>
+            <div class="col-sub">Phenotype Execution</div>
+            </div>
+        </div>
+        <button class="col-collapse-btn" onclick="toggleColumn('field')" title="Collapse Panel">[ - ]</button>
+      </div>
+
+      <div class="codon-bar" id="cb-field">
+        <div class="cb-label">EXPRESSING</div>
+        <div class="cb-gene" data-t="EVD" style="animation-delay:0s"></div>
+        <div class="cb-gene" data-t="N"   style="animation-delay:0.14s"></div>
+        <div class="cb-gene" data-t="RSN" style="animation-delay:0.28s"></div>
+      </div>
+
+      <div class="col-body" style="flex: 1;">
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap open">
+            <div class="sec-head">
+            TARGET ENVIRONMENT (CONTEXT)
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body" style="padding:0;">
+            <div class="input-box" style="border:none;">
+                <textarea id="target-task" placeholder="Inject raw context, source material, or user request here..." oninput="updateFieldStatus();"></textarea>
+                <div class="input-foot">
+                    <div class="vision-rail" id="task-img-preview"></div>
+                    <label class="vision-dropzone">
+                        [+ ATTACH VISION CONTEXT]
+                        <input type="file" id="task-img-upload" accept="image/*" multiple style="display:none;" onchange="handleImageUpload(event,'task')">
+                    </label>
+                </div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- Strict Collapsible Wrap -->
+        <div class="sec-wrap fill open">
+            <div class="sec-head">
+            COMPLETION ARTIFACT
+            <span class="sec-toggle">[-]</span>
+            </div>
+            <div class="sec-body" style="padding:0;">
+                <div class="pheno-wrap" style="border:none;">
+                    <div class="pheno-inner" id="phenotype-output">
+                        <span style="color:#aaa; font-family:var(--mono); font-size:12px; text-transform:uppercase;">[ AWAITING EXPRESSION ]</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      
+      <div class="col-foot">
+        <button class="btn express" id="btn-express" onclick="expressPhenotype()">EXPRESS PHENOTYPE</button>
+        <div class="btn-row">
+            <button class="btn secondary" onclick="recurseArtifact()">RECURSE TO PALETTE</button>
+            <button class="btn secondary" onclick="copyArtifact()">COPY ARTIFACT</button>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+</main>
+
+<!-- ══════════════════════════════════════
+  MODALS
+══════════════════════════════════════ -->
+<!-- Export inspect -->
+<div id="inspect-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      EXPORT LINEAGE SNAPSHOT
+      <button class="btn secondary" style="width:auto; min-height:36px; font-size:11px; padding:0 16px;" onclick="closeModal('inspect-modal')">CANCEL</button>
+    </div>
+    <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+      <div style="font-size:12px; color:var(--muted); font-family:var(--mono); text-transform:uppercase;">Verify DNA and environment snapshot before commit:</div>
+      <textarea id="inspect-json" class="input-box" style="width: 100%; min-height: 300px; font-size: 12px; resize: vertical; overflow-y:auto; line-height: 1.5; padding: 16px; border: 2px solid var(--ink); background: var(--soft);" readonly></textarea>
+      <button class="btn primary" onclick="commitExport()">COMMIT DOWNLOAD</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help -->
+<div id="help-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      THEORY OF THE PROGRAM
+      <button class="btn secondary" style="width:auto; min-height:36px; font-size:11px; padding:0 16px;" onclick="closeModal('help-modal')">CLOSE</button>
+    </div>
+    <div class="modal-body">
+      <div style="border: 2px solid var(--ink); padding: 20px; background: var(--soft); font-family: var(--mono); font-size: 12px; margin-bottom: 20px; text-transform: uppercase; font-weight: 800;">
+        PROMPT = GENOTYPE &nbsp;·&nbsp; COMPLETION = PHENOTYPE<br>
+        CONTEXT = FIELD &nbsp;·&nbsp; USER = BREEDER
+      </div>
+      <p style="margin-bottom: 16px;"><b>1. PALETTE</b> — Write a target behavior, then click <b>Synthesize</b> to build a full prompt genome. Use <b>Mutate</b> to refine it, or <b>Diverge</b> for radical exploration.</p>
+      <p style="margin-bottom: 16px;"><b>2. GENOTYPE</b> — The DNA sequence. <b>Click a gene row to expand/edit its payload.</b> Toggle EXON/INTRON to silence instructions. Manually inject codons from the chip bank. Use the Lineage Bank to switch context or create new branches.</p>
+      <p style="margin-bottom: 16px;"><b>3. MATRIX</b> — Enter a directive in the Palette, then click <b>Breed Matrix</b> to cross your active genome with an AI-generated parent, producing 4 Mendelian offspring in a 2x2 grid.</p>
+      <p style="margin-bottom: 16px;"><b>4. FIELD</b> — The execution environment. Enter your task, then click <b>Express</b> to run the system prompt against the model.</p>
+      <p style="font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; margin-top: 32px; text-transform: uppercase; font-weight: 800;">DOCK COLUMNS USING THE [ - ] ICON.</p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="import-file" accept=".json" style="display:none;">
+
+<script>
+// ══════════════════════════════════════════════════
+//  CONTEXT GENETICS ENGINE v8.9 (FIXED ALLEYS & SINGLE TRACE)
+// ══════════════════════════════════════════════════
+
+const apiKey = "";
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+// --- SESSION / TRACEABILITY ---
+const SESSION_ID = 'INST-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+let auditLog = [];
+
+let genomeBank = [];
+let activeGenomeId = null;
+let synthesisImages = [];
+let taskImages = [];
+let pendingExportData = null;
+
+// Track which genes are expanded in the UI
+let expandedGenes = new Set();
+
+const LOCI = ['RSN','EVD','OUT','FLR','FIT','CST','CMT'];
+
+const AI_SYSTEM = `You are the CONTEXT GENETICS ENGINE. Generate a structured JSON array of prompt codons.
+Loci: RSN=Reasoning, EVD=Evidence, OUT=OutputForm, FLR=FailureHandling, FIT=FitnessPressure, CST=CustomConstraint
+Return ONLY the JSON array. Schema per item: { "type": string, "payload": string, "state": "EXON"|"INTRON", "weight": integer }`;
+
+// ── DOM REFS ──
+const el = id => document.getElementById(id);
+const container = el('genome-container');
+const phenoOut = el('phenotype-output');
+const workspace = el('workspace');
+
+// ── INIT ──
+window.onload = () => {
+  el('session-id-display').innerText = SESSION_ID;
+  auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "INITIALIZE" });
+
+  loadStorage();
+  if(genomeBank.length === 0) {
+      createNewGenome("Founder Lineage", [
+          { id: uid(), type: 'RSN', payload: 'Think step-by-step before writing output.', state: 'EXON', weight: 90 },
+          { id: uid(), type: 'FIT', payload: 'Optimize for precision and density.', state: 'EXON', weight: 80 }
+      ]);
+  }
+  
+  // Collapse Matrix and Field by default so it's not overwhelmed initially
+  const mCol = el('col-matrix');
+  if(mCol) { mCol.classList.add('collapsed'); syncMinimap('matrix', false); }
+  const fCol = el('col-field');
+  if(fCol) { fCol.classList.add('collapsed'); syncMinimap('field', false); }
+
+  initCollapsibleSections();
+  renderBankSelector();
+  renderGenome();
+  updateAllStatus();
+};
+
+// ── DOCKABLE ALLEY LOGIC ──
+function toggleColumn(colId) {
+    const col = el('col-' + colId);
+    
+    if (col) {
+        if(col.classList.contains('collapsed')) {
+            col.classList.remove('collapsed');
+            syncMinimap(colId, true);
+        } else {
+            // Prevent collapsing if it's the last open column
+            const openCols = document.querySelectorAll('.column:not(.collapsed)');
+            if (openCols.length <= 1) {
+                log('Cannot collapse final column.', 'error');
+                return;
+            }
+            col.classList.add('collapsed');
+            syncMinimap(colId, false);
+        }
+    }
+}
+
+function syncMinimap(colId, isActive) {
+    const mmNode = el('mm-node-' + colId);
+    if(mmNode) {
+        if(isActive) mmNode.classList.add('active');
+        else mmNode.classList.remove('active');
+    }
+}
+
+// ── COLLAPSIBLE SECTIONS ──
+function initCollapsibleSections() {
+    document.querySelectorAll('.sec-head').forEach(head => {
+        head.onclick = () => {
+            const wrap = head.closest('.sec-wrap');
+            if(!wrap) return;
+            
+            const toggle = head.querySelector('.sec-toggle');
+            if (wrap.classList.contains('open')) {
+                wrap.classList.remove('open');
+                if(toggle) toggle.innerText = '[+]';
+            } else {
+                wrap.classList.add('open');
+                if(toggle) toggle.innerText = '[-]';
+            }
+        };
+    });
+}
+
+// ── LOGGING & SYSTEM STATE (SINGLE LINE) ──
+function log(msg, type = 'info') {
+    const trace = el('single-trace-msg');
+    if(!trace) return;
+    
+    let cls = 'trace-msg';
+    if(type === 'error') cls += ' error';
+    if(type === 'succ') cls += ' succ';
+    
+    trace.className = cls;
+    trace.innerText = msg;
+    
+    // Quick flash effect
+    trace.style.opacity = '0.2';
+    setTimeout(() => trace.style.opacity = '1', 50);
+}
+
+// Fixed Status Bar
+function setSystemMode(msg, isBusy = false) {
+    const txtEl = el('sys-status-text').querySelector('span');
+    const barEl = el('sys-status-text');
+    
+    if (isBusy) {
+        txtEl.innerText = `SYSTEM: ${msg}`;
+        barEl.classList.add('busy');
+    } else {
+        txtEl.innerText = `SYSTEM: ${msg}`;
+        barEl.classList.remove('busy');
+    }
+}
+
+// ── STATUS TELEMETRY ──
+function setGlobalStatus(col, state) {
+    const mmNode = document.querySelector(`.mm-node[id="mm-node-${col}"]`);
+    if (mmNode) mmNode.dataset.state = state;
+}
+
+function setCodonBar(col, running) {
+  const bar = el(`cb-${col}`);
+  if (bar) bar.classList.toggle('running', running);
+}
+
+function setColBusy(col, busy, sysMsg) {
+  setGlobalStatus(col, busy ? 'loading' : 'idle');
+  setCodonBar(col, busy);
+  if(sysMsg) setSystemMode(sysMsg, busy);
+}
+
+function updateAllStatus() {
+  const active = getActiveGenome();
+  if(!active) return;
+  const total  = active.sequence.length;
+  
+  if (total > 0) {
+      setGlobalStatus('genotype', 'armed');
+      const lockEl = el('matrix-lock');
+      if(lockEl) lockEl.style.display = 'none';
+  } else {
+      setGlobalStatus('genotype', 'idle');
+      const lockEl = el('matrix-lock');
+      if(lockEl) lockEl.style.display = 'flex';
+  }
+
+  updateFieldStatus();
+}
+
+function updateFieldStatus() {
+  const task = el('target-task')?.value?.trim() ?? '';
+  if (task) setGlobalStatus('field', 'armed');
+  else setGlobalStatus('field', 'idle');
+}
+
+// ── MODAL ──
+function closeModal(id) { el(id)?.classList.remove('active'); }
+function openModal(id) {
+  document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+  el(id)?.classList.add('active');
+}
+function showHelp() { openModal('help-modal'); }
+
+// ── DATA BANK ──
+function uid() { return Math.random().toString(36).substring(2, 9); }
+function generateId() { return uid(); } 
+
+function getActiveGenome() {
+    return genomeBank.find(g => g.id === activeGenomeId) || genomeBank[0];
+}
+
+function createNewGenome(label, sequence = []) {
+    const newG = { id: `g_${uid()}`, label: label, sequence: sequence };
+    genomeBank.push(newG);
+    activeGenomeId = newG.id;
+    auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "CREATE_GENOME", id: newG.id });
+    save();
+    renderBankSelector();
+    expandedGenes.clear(); // Reset expansion state
+    renderGenome();
+    updateAllStatus();
+    return newG;
+}
+
+function createNewBlankGenome() {
+    createNewGenome(`Blank Lineage ${genomeBank.length + 1}`, []);
+    log(`Initialized blank lineage.`, 'succ');
+}
+
+function switchActiveGenome(id) {
+    activeGenomeId = id;
+    expandedGenes.clear();
+    save(); renderGenome(); updateAllStatus();
+}
+
+function cloneActiveGenome() {
+    const active = getActiveGenome();
+    if(!active) return;
+    const seqCopy = JSON.parse(JSON.stringify(active.sequence));
+    createNewGenome(`${active.label} (Clone)`, seqCopy);
+    log('Lineage cloned successfully.', 'succ');
+}
+
+function purgeActiveGenome() {
+    if(genomeBank.length <= 1) { alert("Cannot purge the only remaining genome. Clear DNA instead."); return; }
+    if(!confirm(`Purge genome "${getActiveGenome().label}"?`)) return;
+    
+    genomeBank = genomeBank.filter(g => g.id !== activeGenomeId);
+    activeGenomeId = genomeBank[0].id;
+    expandedGenes.clear();
+    save(); renderBankSelector(); renderGenome(); updateAllStatus();
+    log('Genome deleted from bank.', 'error');
+}
+
+function addCodon(type, payload = '', state = 'EXON', weight = 50) {
+  const active = getActiveGenome(); if(!active) return;
+  const newId = uid();
+  active.sequence.push({ id: newId, type, payload, state, weight });
+  expandedGenes.add(newId); // Auto-expand new genes
+  save(); renderGenome(); updateAllStatus();
+  
+  // Ensure the container is expanded when injecting
+  const wrap = el('genome-container').closest('.sec-wrap');
+  if(wrap && !wrap.classList.contains('open')) {
+      wrap.classList.add('open');
+      const toggle = wrap.querySelector('.sec-toggle');
+      if(toggle) toggle.innerText = '[-]';
+  }
+}
+
+function deleteCodon(idx, e) {
+  if(e) e.stopPropagation();
+  const active = getActiveGenome(); if(!active) return;
+  active.sequence.splice(idx, 1);
+  save(); renderGenome(); updateAllStatus();
+}
+
+function moveCodon(idx, dir, e) {
+  if(e) e.stopPropagation();
+  const active = getActiveGenome(); if(!active) return;
+  const ni = idx + dir;
+  if (ni < 0 || ni >= active.sequence.length) return;
+  [active.sequence[idx], active.sequence[ni]] = [active.sequence[ni], active.sequence[idx]];
+  save(); renderGenome();
+}
+
+function updatePayload(idx, val) {
+  const active = getActiveGenome(); if(!active) return;
+  active.sequence[idx].payload = val;
+  save();
+  // Update preview text live
+  const previewEl = el(`preview-${active.sequence[idx].id}`);
+  if(previewEl) previewEl.textContent = val;
+}
+
+function toggleState(idx, e) {
+  if(e) e.stopPropagation();
+  const active = getActiveGenome(); if(!active) return;
+  active.sequence[idx].state = active.sequence[idx].state === 'EXON' ? 'INTRON' : 'EXON';
+  save(); renderGenome(); updateAllStatus();
+}
+
+function clearGenome() {
+  if (!confirm('Clear DNA sequence of active genome?')) return;
+  const active = getActiveGenome(); if(!active) return;
+  active.sequence = []; 
+  expandedGenes.clear();
+  save(); renderGenome(); updateAllStatus();
+  log('DNA wiped completely.', 'error');
+}
+
+function renderBankSelector() {
+    const select = el('genome-bank-select');
+    if(!select) return;
+    select.innerHTML = '';
+    genomeBank.forEach((g, i) => {
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.innerText = `[${String(i+1).padStart(2,'0')}] ${g.label} (${g.sequence.length} G)`;
+        if(g.id === activeGenomeId) opt.selected = true;
+        select.appendChild(opt);
+    });
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>'"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[t]));
+}
+
+function recurseArtifact() {
+    const out = phenoOut.innerText;
+    if(out && !out.includes('AWAITING EXPRESSION')) {
+        const promptEl = el('ai-prompt');
+        promptEl.value = `Critique and mutate based on this output artifact:\n\n${out}`;
+        
+        // Auto expand Palette if collapsed
+        const pCol = el('col-palette');
+        if(pCol.classList.contains('collapsed')) toggleColumn('palette');
+
+        log('Artifact sent to Palette for mutation.', 'succ');
+    }
+}
+
+async function copyArtifact() {
+    const out = phenoOut.innerText;
+    if(out && !out.includes('AWAITING EXPRESSION')) {
+        try {
+            await navigator.clipboard.writeText(out);
+            log('Artifact copied to clipboard.', 'succ');
+        } catch(e) {
+            alert("Clipboard access denied.");
+        }
+    }
+}
+
+// ── STORAGE ──
+const STORE_KEY = `cge_v8_3_${SESSION_ID}`; // Session isolated
+function save() {
+  try { localStorage.setItem('cge_v8_3_latest', JSON.stringify({ genomeBank, activeGenomeId, synthesisImages, taskImages })); }
+  catch(e) { console.warn("Storage Quota Exceeded"); }
+}
+
+function loadStorage() {
+  const raw = localStorage.getItem('cge_v8_3_latest');
+  if (raw) {
+    try {
+      const p = JSON.parse(raw);
+      genomeBank = p.genomeBank || [];
+      activeGenomeId = p.activeGenomeId || (genomeBank[0] ? genomeBank[0].id : null);
+      synthesisImages = p.synthesisImages || [];
+      taskImages = p.taskImages || [];
+      renderImagePreviews('synthesis');
+      renderImagePreviews('task');
+    } catch(e) { genomeBank = []; }
+  }
+}
+
+function prepareExport() {
+  pendingExportData = {
+    version: '8.9', timestamp: Date.now(), instance: SESSION_ID, auditLog,
+    genomeBank, activeGenomeId,
+    environment: { targetTask: el('target-task')?.value || '', aiPrompt: el('ai-prompt')?.value || '' },
+    vision: { synthesisImages, taskImages }
+  };
+  el('inspect-json').value = JSON.stringify(pendingExportData, null, 2);
+  openModal('inspect-modal');
+}
+
+function commitExport() {
+  if (!pendingExportData) return;
+  const a = document.createElement('a');
+  a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(pendingExportData, null, 2));
+  a.download = `cge_snapshot_${SESSION_ID}_${Date.now()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  closeModal('inspect-modal');
+  auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "EXPORT" });
+}
+
+el('import-file').addEventListener('change', function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const imp = JSON.parse(ev.target.result);
+      if (imp.genomeBank) {
+        genomeBank = imp.genomeBank;
+        activeGenomeId = imp.activeGenomeId || genomeBank[0].id;
+        if (imp.environment) {
+          if (imp.environment.targetTask) { el('target-task').value = imp.environment.targetTask; }
+          if (imp.environment.aiPrompt)   { el('ai-prompt').value = imp.environment.aiPrompt; }
+        }
+        if (imp.vision) {
+          synthesisImages = imp.vision.synthesisImages || [];
+          taskImages = imp.vision.taskImages || [];
+          renderImagePreviews('synthesis');
+          renderImagePreviews('task');
+        }
+      }
+      save(); renderBankSelector(); renderGenome(); updateAllStatus();
+      log(`Snapshot from instance ${imp.instance || 'unknown'} restored.`, 'succ');
+      auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "IMPORT", source: imp.instance });
+      
+      const gCol = el('col-genotype');
+      if(gCol.classList.contains('collapsed')) toggleColumn('genotype');
+
+    } catch(err) { alert('Invalid snapshot JSON.'); }
+  };
+  reader.readAsText(file);
+});
+
+function importGenome() { el('import-file').click(); }
+
+// ── VISION ──
+function handleImageUpload(ev, target) {
+  const arr = target === 'synthesis' ? synthesisImages : taskImages;
+  for (const file of Array.from(ev.target.files)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      arr.push({ mimeType: file.type, data: e.target.result.split(',')[1], dataUrl: e.target.result });
+      renderImagePreviews(target); save();
+      log('Morphological reference attached.', 'succ');
+    };
+    reader.readAsDataURL(file);
+  }
+  ev.target.value = '';
+}
+
+function removeImage(target, idx) {
+  const arr = target === 'synthesis' ? synthesisImages : taskImages;
+  arr.splice(idx, 1); renderImagePreviews(target); save();
+}
+
+function renderImagePreviews(target) {
+  const wrap = el(`${target}-img-preview`);
+  const arr = target === 'synthesis' ? synthesisImages : taskImages;
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  arr.forEach((img, i) => {
+    const div = document.createElement('div');
+    div.className = 'img-thumb';
+    div.innerHTML = `<img src="${img.dataUrl}"><button class="img-kill" onclick="removeImage('${target}',${i})">X</button>`;
+    wrap.appendChild(div);
+  });
+}
+
+function getVisionParts(text) {
+  const parts = [{ text }];
+  synthesisImages.forEach(img => parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } }));
+  return parts;
+}
+
+// ── RENDER GENOME (COLLAPSIBLE, CHROMATIC) ──
+function toggleGeneCollapse(id) {
+    if (expandedGenes.has(id)) expandedGenes.delete(id);
+    else expandedGenes.add(id);
+    renderGenome();
+}
+
+function setAllGenesState(expand) {
+    const active = getActiveGenome();
+    if(!active) return;
+    if(expand) {
+        active.sequence.forEach(c => expandedGenes.add(c.id));
+    } else {
+        expandedGenes.clear();
+    }
+    renderGenome();
+}
+
+function renderGenome() {
+  container.innerHTML = '';
+  const active = getActiveGenome();
+  if(!active) return;
+  
+  active.sequence.forEach((codon, idx) => {
+    const isIntron = codon.state === 'INTRON';
+    const isExpanded = expandedGenes.has(codon.id);
+    
+    const card = document.createElement('div');
+    card.className = `gene-card ${isIntron ? 'intron' : ''} ${isExpanded ? 'expanded' : ''}`;
+    card.id = `gene-${codon.id}`;
+    card.setAttribute('data-t', codon.type); // For chromatic left-border
+
+    card.innerHTML = `
+      <div class="gene-head" onclick="toggleGeneCollapse('${codon.id}')">
+        <span class="gene-idx">${String(idx+1).padStart(2,'0')}</span>
+        <span class="gene-type">${codon.type}</span>
+        <span class="gene-preview" id="preview-${codon.id}">${escapeHTML(codon.payload) || '...'}</span>
+        <div class="gene-ops">
+            <button class="op-btn" onclick="moveCodon(${idx},-1, event)">▲</button>
+            <button class="op-btn" onclick="moveCodon(${idx},1, event)">▼</button>
+            <button class="op-btn ${!isIntron ? 'active' : ''}" onclick="toggleState(${idx}, event)" style="font-size:11px; min-width:54px;">${codon.state}</button>
+            <button class="op-btn del" onclick="deleteCodon(${idx}, event)">X</button>
+        </div>
+      </div>
+      <div class="gene-body">
+        <textarea class="gene-payload" onchange="updatePayload(${idx},this.value)" placeholder="Enter instruction...">${escapeHTML(codon.payload)}</textarea>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+  updateAllStatus();
+}
+
+// ── COMPILE ──
+function compile() {
+  const active = getActiveGenome();
+  if(!active) return 'You are a helpful assistant.';
+  const exons = active.sequence.filter(c => c.state === 'EXON' && c.type !== 'CMT');
+  if (!exons.length) return 'You are a helpful assistant.';
+  return 'You must strictly adhere to the following instructions:\n\n' +
+    exons.map(e => `[${e.type}]: ${e.payload}`).join('\n');
+}
+
+// ── CONTROLS ──
+const BTN_IDS = ['btn-express','btn-generate','btn-mutate','btn-stepping-stone','btn-punnett'];
+function setControls(disabled) {
+  BTN_IDS.forEach(id => { const b = el(id); if (b) b.disabled = disabled; });
+}
+
+// ── EXPRESS ──
+async function expressPhenotype() {
+  const task = (el('target-task')?.value || '').trim();
+  localStorage.setItem('context_target_task', task);
+  setControls(true);
+  
+  setColBusy('field', true, 'EXPRESSING...', 'EXPRESSING');
+  phenoOut.innerHTML = '<span style="color:#aaa; font-family:var(--mono); font-size:12px; text-transform:uppercase;">[ EXPRESSING... ]</span>';
+
+  log('Building system prompt from active exons...');
+  const systemPrompt = compile();
+  await delay(250);
+  log(`Sending to model...`);
+
+  const parts = [{ text: task || 'Execute your instructions.' }];
+  taskImages.forEach(img => parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } }));
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }], systemInstruction: { parts: [{ text: systemPrompt }] } })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const text = data.candidates[0].content.parts[0].text;
+    
+    log('Artifact stabilized successfully.', 'succ');
+    phenoOut.innerHTML = escapeHTML(text);
+    setColBusy('field', false, 'IDLE');
+    setGlobalStatus('field', 'done');
+    auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "EXPRESS" });
+  } catch(e) {
+    log('Expression collapse.', 'error');
+    phenoOut.innerHTML = '<span style="color:#dc2626; font-family:var(--mono); font-size:12px;">[ EXPRESSION FAILED ]</span>';
+    setColBusy('field', false, 'IDLE');
+    setGlobalStatus('field', 'error');
+  }
+  setControls(false);
+}
+
+// ── GEMINI JSON ──
+const codonSchema = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: { type: { type: 'STRING', enum: LOCI }, payload: { type: 'STRING' }, state: { type: 'STRING', enum: ['EXON','INTRON'] }, weight: { type: 'INTEGER' } },
+    required: ['type','payload','state']
+  }
+};
+
+async function runJSON(payload, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return JSON.parse(data.candidates[0].content.parts[0].text);
+    } catch(e) {
+      if (i === retries - 1) throw e;
+      await delay([1000, 2000, 4000][i]);
+    }
+  }
+}
+
+// ── AI OPERATIONS ──
+async function triggerAiOp(type) {
+    const prompt = (el('ai-prompt')?.value || '').trim();
+    if (!prompt && type === 'generate') { alert('Add an AI Synthesis Directive first.'); return; }
+    
+    const active = getActiveGenome();
+    const gContext = active ? JSON.stringify(active.sequence) : "[]";
+
+    setControls(true);
+    
+    let directive, logMsg, labelPrefix;
+    if(type === 'generate') { logMsg = "SYNTHESIZING"; labelPrefix = "Synth"; directive = `Generate a new prompt genome to achieve this goal: "${prompt}"`; }
+    if(type === 'mutate') { logMsg = "MUTATING"; labelPrefix = "Mutant"; directive = `Genome:\n${gContext}\n\nMutation directive: "${prompt || 'Improve'}". Rewrite alleles. Return mutated genome.`; }
+    if(type === 'diverge') { logMsg = "DIVERGING"; labelPrefix = "Divergent"; directive = `Genome:\n${gContext}\n\nApply a 'Deceptive Stepping Stone' mutation. Abandon obvious approach. Invert reasoning/form. Return new architecture.`; }
+
+    setColBusy('palette', true, logMsg);
+    log(`Sequencing DNA for ${logMsg}...`);
+
+    try {
+        const result = await runJSON({
+            contents: [{ parts: getVisionParts(directive) }],
+            systemInstruction: { parts: [{ text: AI_SYSTEM }] },
+            generationConfig: { responseMimeType: 'application/json', responseSchema: codonSchema }
+        });
+        
+        const seq = result.map(c => ({ id: generateId(), type: c.type, payload: c.payload || '', state: c.state || 'EXON', weight: c.weight || 50 }));
+        
+        createNewGenome(`${labelPrefix}: ${prompt.substring(0,15)}...`, seq);
+        auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: logMsg });
+        
+        log(`Architecture stabilized: ${result.length} genes generated.`, 'succ');
+        setColBusy('palette', false, 'IDLE');
+        setGlobalStatus('palette', 'done');
+        
+        const gCol = el('col-genotype');
+        if(gCol.classList.contains('collapsed')) toggleColumn('genotype');
+        
+    } catch(e) {
+        log(`Operation failed.`, 'error');
+        setColBusy('palette', false, 'IDLE');
+        setGlobalStatus('palette', 'error');
+    }
+    setControls(false);
+}
+
+function generateFromAI() { triggerAiOp('generate'); }
+function mutateCurrentAI() { triggerAiOp('mutate'); }
+function mutateSteppingStone() { triggerAiOp('diverge'); }
+
+// ── 2x2 EXPLICIT PUNNETT ──
+class Punnett {
+  dom(a, b) {
+    const wa = a?.weight||0, wb = b?.weight||0;
+    if (wa > wb) return a;
+    if (wb > wa) return b;
+    if (a && b) return { ...a, payload: `${a.payload} AND ${b.payload}` };
+    return a || b;
+  }
+  cross(p1Seq, p2Seq) {
+    const d1 = {}, d2 = {};
+    p1Seq.forEach(c => d1[c.type] = c);
+    p2Seq.forEach(c => d2[c.type] = c);
+    const all = [...new Set([...Object.keys(d1), ...Object.keys(d2)])];
+    
+    // Find 2 most divergent loci
+    const div = all.filter(l => d1[l]?.payload !== d2[l]?.payload).slice(0, 2);
+    const sta = all.filter(l => !div.includes(l));
+    while(div.length < 2 && all.length > div.length) {
+        const extra = all.find(l => !div.includes(l));
+        if(extra) div.push(extra);
+    }
+    if(div.length === 0) div.push(all[0]);
+
+    const l1 = div[0];
+    const l2 = div[1];
+
+    const pairs = [
+        { a1: d1[l1], a2: d1[l2], desc: "Parent A Dominant" }, 
+        { a1: d2[l1], a2: d1[l2], desc: "Hybrid (L1 B)" },     
+        { a1: d1[l1], a2: d2[l2], desc: "Hybrid (L2 B)" },     
+        { a1: d2[l1], a2: d2[l2], desc: "Parent B Dominant" }  
+    ];
+    
+    const offspring = pairs.map((pair, idx) => {
+        const seq = [];
+        sta.forEach(l => { const x = this.dom(d1[l], d2[l]); if(x) seq.push({...x}); });
+        if(pair.a1) seq.push({...pair.a1});
+        if(pair.a2 && l2) seq.push({...pair.a2});
+        return { trait: pair.desc, sequence: seq, alleles: [pair.a1, pair.a2] };
+    });
+
+    return { offspring, l1, l2, p1_a1: d1[l1], p2_a1: d2[l1], p1_a2: d1[l2], p2_a2: d2[l2] };
+  }
+}
+
+function clearMatrix() {
+    el('punnett-grid-container').innerHTML = '<div style="font-family: var(--sans); font-size: 13px; color: var(--muted); padding: 8px; line-height: 1.6;">Matrix cleared. Provide a directive upstream to breed a new generation.</div>';
+}
+
+async function generatePunnettSquare() {
+  const active = getActiveGenome();
+  if (!active || !active.sequence.length) { alert('No genome to breed.'); return; }
+  const prompt = (el('ai-prompt')?.value || '').trim() || 'Generate a divergent parent genome with different alleles.';
+  
+  setControls(true);
+  const btn = el('btn-punnett');
+  if(btn) btn.innerText = "BREEDING...";
+  
+  setColBusy('matrix', true, 'BREEDING MATRIX');
+  setColBusy('palette', true, 'BREEDING MATRIX');
+  
+  log('Generating Parent B for cross...');
+  
+  try {
+    const parentB = await runJSON({
+      contents: [{ parts: getVisionParts(`Parent A genome:\n${JSON.stringify(active.sequence)}\nConstraint: "${prompt}". Generate divergent Parent B.`) }],
+      systemInstruction: { parts: [{ text: AI_SYSTEM }] },
+      generationConfig: { responseMimeType: 'application/json', responseSchema: codonSchema }
+    });
+    
+    log('Executing 2x2 Mendelian cross...');
+    const matrixData = new Punnett().cross(active.sequence, parentB);
+    
+    renderExplicitPunnett(matrixData);
+    
+    log('Offspring ready in Matrix tab.', 'succ');
+    setColBusy('matrix', false, `IDLE`);
+    setColBusy('palette', false, 'IDLE');
+    setGlobalStatus('matrix', 'done');
+    auditLog.push({ timestamp: Date.now(), instance: SESSION_ID, action: "PUNNETT_CROSS" });
+  } catch(e) {
+    log('Breeding failed.', 'error');
+    setColBusy('matrix', false, 'IDLE');
+    setColBusy('palette', false, 'IDLE');
+    setGlobalStatus('matrix', 'error');
+  }
+  
+  setControls(false);
+  if(btn) btn.innerText = "BREED PUNNETT MATRIX";
+}
+
+function renderExplicitPunnett(data) {
+    const grid = el('punnett-grid-container');
+    grid.innerHTML = '';
+
+    const trunc = (a) => a ? escapeHTML(a.payload.substring(0, 30)) + '…' : 'None';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'punnett-wrapper';
+    
+    wrapper.innerHTML = `
+        <div class="punnett-grid">
+            <div class="punnett-corner"></div>
+            <div class="punnett-header" style="color:var(--teal)"><strong>PARENT A</strong><br>[${data.l1}]<br>${trunc(data.p1_a1)}</div>
+            <div class="punnett-header" style="color:var(--orange)"><strong>PARENT B</strong><br>[${data.l1}]<br>${trunc(data.p2_a1)}</div>
+            
+            <div class="punnett-header vertical" style="color:var(--teal)"><strong>PARENT A</strong><br>[${data.l2 || 'N/A'}]</div>
+            ${createPunnettCellHTML(0, data.offspring[0])}
+            ${createPunnettCellHTML(1, data.offspring[1])}
+            
+            <div class="punnett-header vertical" style="color:var(--orange)"><strong>PARENT B</strong><br>[${data.l2 || 'N/A'}]</div>
+            ${createPunnettCellHTML(2, data.offspring[2])}
+            ${createPunnettCellHTML(3, data.offspring[3])}
+        </div>
+    `;
+
+    grid.appendChild(wrapper);
+
+    // Bind click events
+    data.offspring.forEach((off, i) => {
+        const cell = el(`p-cell-${i}`);
+        if(cell) {
+            cell.onclick = () => {
+                createNewGenome(`Offspring 00${i+1}`, off.sequence.map(c => ({ id: generateId(), type: c.type, payload: c.payload||'', state: c.state||'EXON', weight: c.weight||50 })));
+                
+                log(`Offspring 00${i+1} loaded to Genotype.`, 'succ');
+                
+                const gCol = el('col-genotype');
+                if(gCol.classList.contains('collapsed')) toggleColumn('genotype');
+            };
+        }
+    });
+}
+
+function createPunnettCellHTML(index, candidate) {
+    const alleleText = candidate.alleles.filter(a=>a).map(a => `[${a.type}] ${a.payload}`).join('\n');
+    return `
+        <div class="punnett-cell" id="p-cell-${index}">
+            <div style="display:flex; justify-content:space-between; margin-bottom: 8px;">
+                <span class="p-trait">${candidate.trait}</span>
+                <span class="p-genes">${candidate.sequence.length} G</span>
+            </div>
+            <div class="p-desc">${escapeHTML(alleleText)}</div>
+        </div>
+    `;
+}
+
+</script>
+</body>
+</html>

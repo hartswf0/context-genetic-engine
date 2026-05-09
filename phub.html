@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PRIME PROMPT — CONTEXT GENETICS ENGINE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* STARK CONTRAST ENFORCEMENT - BASE */
+        :root {
+            --black: #000000;
+            --white: #ffffff;
+            
+            /* GENOMA SCOPE THEME INTEGRATION */
+            --scope-bg-color: #0a0c10;
+            --scope-text-color: #c9d1d9;
+            --border-color: #2a2a3a;
+            --accent-color: #00faff;
+            --intron-color: #444;
+            --dom-color: #ff0055; /* Dominant Marker */
+            
+            /* Codon Allele Colors */
+            --color-rsn: #4caf50; /* Reasoning */
+            --color-evd: #2196f3; /* Evidence */
+            --color-sty: #ff9800; /* Style/Structure */
+            --color-flr: #9c27b0; /* Failure */
+            --color-mut: #f44336; /* Mutation */
+            --color-sel: #00bcd4; /* Selection */
+            --color-unk: #9e9e9e;
+        }
+
+        body {
+            background-color: var(--white);
+            color: var(--black);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-transform: uppercase;
+        }
+        ::selection { background-color: var(--black); color: var(--white); }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        .inverted { background-color: var(--black); color: var(--white); }
+        
+        /* TEXT AS PHYSICAL CONTROL SURFACE */
+        .control-surface {
+            cursor: pointer;
+            border: 2px solid var(--black);
+            transition: all 0s;
+        }
+        .control-surface:hover {
+            background-color: var(--black);
+            color: var(--white);
+        }
+        .control-surface.active-bind {
+            background: linear-gradient(to bottom, var(--black) 0%, var(--black) 100%);
+            color: var(--white);
+            border: 2px solid var(--black);
+        }
+
+        /* ROUTING / NAV STREAM */
+        .route-node { opacity: 0.4; transition: opacity 0.2s; }
+        .route-node.active-node { opacity: 1; font-weight: bold; text-decoration: underline; color: var(--dom-color); }
+
+        #viewport { scroll-behavior: smooth; }
+        
+        /* Loader */
+        .loader-block {
+            display: inline-block; width: 10px; height: 10px;
+            background-color: var(--black); animation: blink 1s step-end infinite;
+        }
+        .inverted .loader-block { background-color: var(--white); }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* IFRAME RESET & PUNNETT SQUARE */
+        iframe { background-color: #fff; }
+        .punnett-grid {
+            display: grid;
+            grid-template-columns: 20px 1fr 1fr;
+            grid-template-rows: 20px 1fr 1fr;
+            gap: 2px;
+            background-color: var(--black);
+            border: 4px solid var(--black);
+        }
+        .punnett-cell { background-color: var(--white); padding: 8px; position: relative; }
+        .punnett-header { background-color: var(--black); color: var(--white); font-size: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; }
+        .punnett-header.vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
+
+        /* MODAL */
+        #stateflow-modal { display: none; }
+        #stateflow-modal.active { display: flex; }
+
+        /* FOCUS ANIMATION */
+        @keyframes flash-border {
+            0% { border-color: var(--black); }
+            50% { border-color: var(--dom-color); }
+            100% { border-color: var(--black); }
+        }
+        .focus-flash { animation: flash-border 1.5s ease-in-out infinite; }
+
+        /* --- GENOMA SCOPE SPECIFIC UI IMPLANTS --- */
+        .scope-container { background-color: var(--scope-bg-color); color: var(--scope-text-color); }
+        .scope-scrollbar::-webkit-scrollbar { width: 6px; }
+        .scope-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .scope-scrollbar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        
+        .locus-group { border-left: 2px solid var(--border-color); padding-left: 10px; margin-bottom: 15px; position: relative; }
+        .locus-label { font-size: 10px; color: var(--accent-color); position: absolute; top: -8px; left: 5px; background: var(--scope-bg-color); padding: 0 4px; font-weight: bold; letter-spacing: 1px;}
+        
+        .codon { display: flex; align-items: center; padding: 6px 10px; border-radius: 3px; border: 1px solid transparent; margin-bottom: 4px; transition: background 0.2s; }
+        .codon:hover { background-color: rgba(255,255,255,0.05); }
+        .codon.intron { opacity: 0.4; background-color: transparent !important; border: 1px dashed var(--border-color); }
+        .codon-type { padding: 3px 6px; border-radius: 2px; color: #000; margin-right: 15px; font-size: 0.8rem; font-weight: 900; min-width: 50px; text-align: center; user-select: none; }
+        .codon.intron .codon-type { background-color: var(--intron-color) !important; text-decoration: line-through; color: #fff; }
+        .codon-payload { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; flex-grow: 1; font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, monospace; text-transform: none; }
+        .dominance-marker { font-size: 8px; font-weight: bold; background: var(--dom-color); color: white; padding: 2px 4px; border-radius: 2px; margin-left: auto; }
+        .codon.intron .dominance-marker { display: none; }
+        
+        .codon-band-container { display: flex; flex-direction: column; gap: 1px; width: 100%; border: 1px solid var(--black); padding: 1px; background: var(--white); }
+        .codon-band { width: 100%; height: 6px; flex-shrink: 0; opacity: 0.9; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col relative">
+
+    <!-- HEADER / META -->
+    <header class="p-4 border-b-4 border-black flex justify-between items-end shrink-0 z-10 bg-white">
+        <div>
+            <h1 class="font-bold text-xl tracking-tighter">[ PROMPT HUSBANDRY ]</h1>
+            <p class="text-xs tracking-widest mt-1">v8.0 :: CONTEXT GENETICS ENGINE</p>
+        </div>
+        <div class="text-right flex flex-col items-end gap-1">
+            <button onclick="toggleStateflow()" class="text-xs border-2 border-black px-2 py-1 font-bold hover:bg-black hover:text-white transition-colors">
+                [ VIEW LINEAGE ARCHIVE ]
+            </button>
+            <p class="text-[10px] tracking-widest mt-1 font-bold text-[#ff0055]">GEN: <span id="generation-counter">001</span></p>
+        </div>
+    </header>
+
+    <!-- HEREDITARY ROUTER -->
+    <div class="bg-black text-white text-[10px] tracking-widest flex items-center justify-between p-2 shrink-0 z-10 overflow-x-auto whitespace-nowrap">
+        <span class="text-neutral-500 mr-4">&larr; UPSTREAM</span>
+        <div class="flex gap-2" id="lineage-router">
+            <span class="route-node active-node" id="route-0">[1] ENVIRONMENT</span>
+            <span class="route-node" id="route-1">&gt; [2] GENOTYPE LOCI</span>
+            <span class="route-node" id="route-2">&gt; [3] PUNNETT MEIOSIS</span>
+            <span class="route-node" id="route-3">&gt; [4] ARTIFICIAL SELECTION</span>
+            <span class="route-node" id="route-4">&gt; [5] PHENOTYPE SWEEP</span>
+        </div>
+        <span class="text-neutral-500 ml-4">DOWNSTREAM &rarr;</span>
+    </div>
+
+    <!-- VIEWPORT: STACK PUSHES UP FROM BOTTOM -->
+    <main id="viewport" class="flex-1 overflow-y-auto p-4 flex flex-col justify-start gap-6 pb-72">
+        <div id="log-anchor" class="w-full flex flex-col gap-6 items-start"></div>
+    </main>
+
+    <!-- CONTROL BASE (ANCHORED AT FOOT) -->
+    <footer class="absolute bottom-0 w-full bg-white border-t-4 border-black p-4 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]" id="base-control">
+        
+        <!-- LAYER 1: INGESTION -->
+        <div id="input-layer" class="w-full flex flex-col gap-2">
+            <textarea id="specimen-input" class="w-full h-20 border-2 border-black p-2 focus:outline-none focus:bg-black focus:text-white transition-colors resize-none" placeholder="[ ENTER ENVIRONMENTAL MEDIUM OR SPECIMEN TO INGEST ]"></textarea>
+            <div class="flex items-center justify-between border-2 border-black p-2" id="img-upload-container">
+                <div class="flex items-center">
+                    <span class="text-xs font-bold whitespace-nowrap mr-2">ATTACH MEDIUM (IMG):</span>
+                    <input type="file" id="image-upload" accept="image/*" class="text-xs w-full cursor-pointer file:mr-4 file:py-1 file:px-2 file:border-0 file:text-xs file:bg-black file:text-white file:font-bold hover:file:bg-gray-800 transition-all">
+                </div>
+                <img id="reingest-preview" class="h-8 border border-black hidden ml-2 object-cover" alt="Artifact Preview">
+            </div>
+            <button id="btn-ingest" onclick="executeTranscription()" class="w-full border-4 border-black p-3 font-bold text-lg hover:bg-black hover:text-white transition-colors">
+                EXECUTE : TRANSCRIBE GENOTYPE
+            </button>
+        </div>
+
+        <!-- LAYER 2: DYNAMIC BINDING ACTION -->
+        <div id="action-layer" class="w-full hidden flex-col gap-2">
+            <div id="binding-status" class="text-xs border-b-2 border-black pb-2 mb-2 font-bold truncate uppercase tracking-widest text-[#ff0055]">NO LOCUS BOUND</div>
+            
+            <!-- Standard dynamic button -->
+            <button id="btn-dynamic" class="w-full border-4 border-black p-3 font-bold text-lg hover:bg-black hover:text-white transition-colors hidden">
+                [ AWAITING BINDING ]
+            </button>
+            
+            <!-- Post-Assay execution buttons -->
+            <div id="execution-buttons" class="hidden flex flex-col gap-2">
+                <div class="text-[10px] font-bold text-center border-b border-black pb-1 mb-1">APPLY GENETIC MUTATION OPERATOR</div>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                    <button onclick="executeMutation('TRANSLOCATION')" class="border-2 border-black bg-white text-black p-2 font-bold text-[10px] hover:bg-black hover:text-white transition-colors">
+                        [ TRANSLOCATION ]
+                    </button>
+                    <button onclick="executeMutation('INVERSION')" class="border-2 border-black bg-white text-black p-2 font-bold text-[10px] hover:bg-black hover:text-white transition-colors">
+                        [ INVERSION ]
+                    </button>
+                    <button onclick="executeMutation('DUPLICATION')" class="border-2 border-black bg-white text-black p-2 font-bold text-[10px] hover:bg-black hover:text-white transition-colors">
+                        [ DUPLICATION ]
+                    </button>
+                    <button onclick="executeMutation('POINT_MUTATION')" class="border-2 border-black bg-white text-black p-2 font-bold text-[10px] hover:bg-black hover:text-white transition-colors">
+                        [ POINT MUTATION ]
+                    </button>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="executePhenotype('CODE')" class="flex-1 border-4 border-black p-3 font-bold text-sm hover:bg-black hover:text-white transition-colors flex flex-col items-center">
+                        <span>EXPRESS PHENOTYPE : CODE</span>
+                        <span class="text-[9px] font-normal tracking-widest">(THEORY &rarr; IFRAME)</span>
+                    </button>
+                    <button onclick="executePhenotype('IMAGE')" class="flex-1 border-4 border-black p-3 font-bold text-sm hover:bg-black hover:text-white transition-colors flex flex-col items-center">
+                        <span>EXPRESS PHENOTYPE : VISION</span>
+                        <span class="text-[9px] font-normal tracking-widest">(IMAGEN 4.0)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recurse button -->
+            <div id="recurse-layer" class="hidden flex flex-col gap-2">
+                <button onclick="executeSweep()" class="w-full border-4 border-black bg-black text-white p-3 font-bold text-lg hover:bg-white hover:text-black transition-colors focus-flash">
+                    [ SELECTIVE SWEEP : COMPRESS & RECURSE GEN(N+1) ]
+                </button>
+                <button onclick="hardResetSystem()" class="w-full border-2 border-black p-2 font-bold text-xs hover:bg-[#ff0055] hover:text-white transition-colors hover:border-[#ff0055]">
+                    [ END LINEAGE : EXTINCTION EVENT ]
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- LINEAGE ARCHIVE MODAL -->
+    <div id="stateflow-modal" class="absolute inset-0 bg-white z-50 flex-col p-6">
+        <div class="flex justify-between items-end border-b-4 border-black pb-4 mb-4 shrink-0">
+            <div>
+                <h2 class="font-bold text-2xl tracking-tighter">HEREDITARY LINEAGE / ARCHIVE</h2>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="downloadResearchLog()" class="text-[10px] border-2 border-black px-2 py-1 font-bold hover:bg-black hover:text-white transition-colors" id="btn-download-log">[ DOWNLOAD .JSON ]</button>
+                    <button onclick="copyResearchLog()" class="text-[10px] border-2 border-black px-2 py-1 font-bold hover:bg-black hover:text-white transition-colors" id="btn-copy-log">[ COPY TO CLIPBOARD ]</button>
+                </div>
+            </div>
+            <button onclick="toggleStateflow()" class="font-bold text-xl border-2 border-black px-4 py-1 hover:bg-black hover:text-white">[ X ] CLOSE</button>
+        </div>
+        <div class="flex-1 flex gap-4 min-h-0">
+            <div class="w-1/3 border-2 border-black overflow-y-auto flex flex-col bg-white" id="audit-list">
+                <!-- Dynamic Log Rows -->
+            </div>
+            <div class="w-2/3 border-2 border-black overflow-y-auto p-4 bg-black text-white relative font-mono text-xs" id="audit-detail">
+                <div class="text-neutral-500 font-bold tracking-widest">[ SELECT HEREDITARY EVENT TO INSPECT ]</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE INFRASTRUCTURE ---
+        const apiKey = ""; // Environment injected
+        const viewport = document.getElementById('viewport');
+        const logAnchor = document.getElementById('log-anchor');
+        const inputLayer = document.getElementById('input-layer');
+        const actionLayer = document.getElementById('action-layer');
+        const btnDynamic = document.getElementById('btn-dynamic');
+        const executionButtons = document.getElementById('execution-buttons');
+        const recurseLayer = document.getElementById('recurse-layer');
+        const bindingStatus = document.getElementById('binding-status');
+        
+        let currentState = {
+            generation: 1,
+            specimenText: "",
+            imageBase64: null,
+            imageMimeType: null,
+            currentGenoma: [], // {id, locus, type, payload, active}
+            genomes: [], // Offspring array
+            boundGenome: null,
+            winningPhenotype: null,
+            lastArtifactType: null,
+            lastArtifactText: null,
+            lastArtifactImage: null,
+            stateHistory: []
+        };
+
+        const researchLog = [];
+        let selectedLogIndex = -1;
+
+        // --- CONTEXT GENETICS DICTIONARY ---
+        const CODON_TYPES = {
+            'RSN': { color: 'var(--color-rsn)', name: 'Reasoning Order' },
+            'EVD': { color: 'var(--color-evd)', name: 'Evidence Policy' },
+            'STY': { color: 'var(--color-sty)', name: 'Structure Style' },
+            'FLR': { color: 'var(--color-flr)', name: 'Failure Handling' },
+            'MUT': { color: 'var(--color-mut)', name: 'Mutation Policy' },
+            'SEL': { color: 'var(--color-sel)', name: 'Selection Pressure' },
+            'UNK': { color: 'var(--color-unk)', name: 'Unlinked Trait' }
+        };
+
+        const LOCUS_ORDER = ['RSN', 'EVD', 'STY', 'FLR', 'MUT', 'SEL'];
+
+        function parseTraitToCodon(trait) {
+            const match = trait.match(/^\[([A-Z_]+)\]\s*(.*)$/);
+            if (match) return { type: match[1], payload: match[2] };
+            return { type: 'UNK', payload: trait };
+        }
+
+        // --- DEEP GENETIC SYSTEM INSTRUCTIONS ---
+
+        const CONTEXT_GENETICS_POML = `<poml version="3.0">
+  <meta>
+    <title>CONTEXT GENETICS ENGINE</title>
+    <intent>Transform prompts into biological genotypes; express via models into distinct phenotypes.</intent>
+  </meta>
+  
+  <system>
+    <role>You are a Context Geneticist. You operate a breeding facility inside the context window.</role>
+    <epistemology>
+      1. Prompt = Genotype. Completion = Phenotype. Constraints = Selection Pressure.
+      2. Alleles compete for expression. Constraints (e.g. strict source fidelity) are dominant. Stylistic requests are recessive.
+    </epistemology>
+    <directive>Translate the input medium into strict operational architectures. Map failure modes to mutation pressure.</directive>
+  </system>
+  
+  <design_constraints>
+    <constraint type="contrast">Absolute black and white UI. Stark. No gradients outside selection states.</constraint>
+    <constraint type="dominance">If <source_constraint> conflicts with <creative_expansion>, source dominates.</constraint>
+    <constraint type="phenotype">Output structural logic, theory-of-the-program, and operational states. No raw application code without rigorous theory scaffolding preceding it.</constraint>
+  </design_constraints>
+</poml>`;
+
+        const GENOTYPE_TRANSCRIPTION_PROMPT = `TRANSCRIBE GENOTYPE. 
+Read the Environmental Medium. Extract its core behaviors into Genetic Codons mapped to 6 Loci:
+1. RSN: Reasoning Order (e.g., theory first, direct answer)
+2. EVD: Evidence Policy (e.g., source only, expansion allowed)
+3. STY: Structure Style (e.g., bullets, program theory, POML)
+4. FLR: Failure Handling (e.g., ignore, list, mutate)
+5. MUT: Mutation Policy (e.g., none, structural recombination)
+6. SEL: Selection Pressure (e.g., speed, accuracy, novelty)
+
+Output exactly the requested JSON schema. Assign appropriate string payloads to each array.`;
+
+        const STRICT_MEIOSIS_PROMPT = `PUNNETT LAB MEIOSIS.
+You are a Context Genetics Engine performing artificial recombination.
+Given the Active Exons (Dominant Alleles) from the Parent Genotype, generate exactly 4 Offspring Prompt Genotypes.
+STRICT MENDELIAN DISCIPLINE: 
+Construct the 'traits' array for each offspring ONLY using the exact string payloads provided in the active Exon list. Format each trait strictly as "[TYPE] Payload". Mix and match them to create diverse but strictly inherited variations. 
+Do not invent or hallucinate new traits.`;
+
+        const CONTEXT_MUTATION_PROMPT = `GENETIC MUTATION ENGINE.
+Execute a specific genetic mutation operator on the provided Phenotype Expression, altering the underlying Genotype.
+
+**Subject Phenotype:** [Name it based on the input]
+**Operator Applied:** [TRANSLOCATION | INVERSION | DUPLICATION | POINT_MUTATION]
+
+### I. Genetic Analysis
+[Identify 3 specific recessive weaknesses or dead-end paths in the current phenotype].
+
+### II. The Mutated Genotype Expression
+**Phase-Shift:**
+Discard the previous equilibrium. Apply the chosen Mutation Operator to force a developmental shift.
+1. **[Dominant Expression]:** [Instruction leveraging a mutated/shifted trait]
+2. **[Recessive Support]:** [Instruction leveraging an original supporting trait]
+3. **[Fitness Constraint]:** [Strict negative constraint enforcing survival]
+
+**GOAL:** [Final transcendent operational goal]`;
+
+        const NAURIAN_ENGINE_PROMPT = `You are a Naurian Program-Theory Engine. Build the theory-of-the-program BEFORE program text.
+Naurian Loop: 1. Elicit purpose 2. Define Entities/Loci 3. Define Morphisms/Operations 4. State Invariants 5. Map Transitions 6. Expose Assumptions 7. Find Failure Modes 8. Generate program text.
+OUTPUT FORMAT REQUIREMENT: 
+First, output Theory in Markdown. Then, output the complete, runnable Program Text as a single HTML file inside \`\`\`html and \`\`\` markers.`;
+
+
+        // --- FILE HANDLING ---
+        document.getElementById('image-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                currentState.imageMimeType = file.type;
+                currentState.imageBase64 = reader.result.split(',')[1];
+                document.getElementById('reingest-preview').classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // --- UI UTILS ---
+        function toggleStateflow() {
+            document.getElementById('stateflow-modal').classList.toggle('active');
+            if(document.getElementById('stateflow-modal').classList.contains('active')) renderStateflowList();
+        }
+
+        function copyToClipboardFallback(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed";
+            document.body.appendChild(textArea); textArea.focus(); textArea.select();
+            try { document.execCommand('copy'); } catch (err) {}
+            document.body.removeChild(textArea);
+        }
+
+        function addLogEntry(phase, requestPayload, responseData, extra = {}) {
+            researchLog.push({ generation: currentState.generation, timestamp: new Date().toISOString(), phase, requestPayload, responseData, extra });
+            if(document.getElementById('stateflow-modal').classList.contains('active')) renderStateflowList();
+        }
+
+        function renderStateflowList() {
+            const listEl = document.getElementById('audit-list');
+            listEl.innerHTML = '';
+            researchLog.forEach((log, index) => {
+                const el = document.createElement('div');
+                el.className = `p-3 border-b-2 border-black cursor-pointer hover:bg-black hover:text-white transition-colors text-[10px] font-bold truncate ${selectedLogIndex === index ? 'bg-black text-white' : 'bg-white text-black'}`;
+                el.innerHTML = `[ GEN-${log.generation.toString().padStart(3,'0')} ] :: ${log.phase}`;
+                el.onclick = () => viewLogEntry(index);
+                listEl.appendChild(el);
+            });
+        }
+
+        function viewLogEntry(index) {
+            selectedLogIndex = index;
+            renderStateflowList();
+            const log = researchLog[index];
+            const detailEl = document.getElementById('audit-detail');
+            const formatData = (data) => typeof data === 'string' ? data.replace(/</g, '&lt;').replace(/>/g, '&gt;') : JSON.stringify(data, null, 2);
+            
+            detailEl.innerHTML = `
+                <div class="flex justify-between border-b-2 border-white pb-2 mb-4 sticky top-0 bg-black z-10">
+                    <h3 class="font-bold text-sm tracking-widest text-white text-[#ff0055]">${log.phase} <br><span class="text-neutral-500 text-[9px]">${log.timestamp}</span></h3>
+                    <button onclick="copySpecificLog(${index})" class="border-2 border-white px-2 py-1 text-[10px] font-bold hover:bg-[#ff0055] hover:border-[#ff0055] hover:text-white transition-colors self-start" id="btn-copy-specific">COPY ARCHIVE RECORD</button>
+                </div>
+                <div class="mb-2 font-bold text-[10px] text-neutral-400 uppercase tracking-widest border-b border-neutral-700 pb-1">Selection Pressure (Request)</div>
+                <pre class="text-[10px] whitespace-pre-wrap overflow-x-auto mb-6 bg-[#111] p-3 border border-[#333] text-neutral-300">${formatData(log.requestPayload)}</pre>
+                
+                <div class="mb-2 font-bold text-[10px] text-neutral-400 uppercase tracking-widest border-b border-neutral-700 pb-1">Expressed Phenotype (Response)</div>
+                <pre class="text-[10px] whitespace-pre-wrap overflow-x-auto bg-[#111] p-3 border border-[#333] text-neutral-300">${formatData(log.responseData)}</pre>
+            `;
+        }
+
+        function downloadResearchLog() {
+            if(researchLog.length === 0) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(researchLog, null, 2));
+            const anchor = document.createElement('a');
+            anchor.href = dataStr;
+            anchor.download = `context-genetics-lineage-${new Date().getTime()}.json`;
+            document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
+        }
+
+        function copyResearchLog() {
+            copyToClipboardFallback(JSON.stringify(researchLog, null, 2));
+            const btn = document.getElementById('btn-copy-log');
+            const original = btn.innerText; btn.innerText = "[ COPIED! ]"; btn.classList.add('bg-black', 'text-white');
+            setTimeout(() => { btn.innerText = original; btn.classList.remove('bg-black', 'text-white'); }, 2000);
+        }
+        
+        function copySpecificLog(index) {
+            copyToClipboardFallback(JSON.stringify(researchLog[index], null, 2));
+            const btn = document.getElementById('btn-copy-specific');
+            const original = btn.innerText; btn.innerText = "COPIED!"; btn.classList.add('bg-white', 'text-black');
+            setTimeout(() => { btn.innerText = original; btn.classList.remove('bg-white', 'text-black'); }, 2000);
+        }
+
+        function updateRoute(step) {
+            for(let i=0; i<=4; i++) {
+                const node = document.getElementById(`route-${i}`);
+                if (i <= step) { node.classList.add('active-node'); node.style.opacity = '1'; } 
+                else { node.classList.remove('active-node'); node.style.opacity = '0.4'; }
+            }
+        }
+
+        function scrollToBottom() { setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 100); }
+
+        function appendLog(htmlContent, isError = false) {
+            const el = document.createElement('div');
+            el.className = `w-full border-2 border-black p-3 ${isError ? 'inverted' : 'bg-white'}`;
+            el.innerHTML = htmlContent;
+            logAnchor.appendChild(el);
+            scrollToBottom();
+            return el;
+        }
+
+        function setActionState(mode, callback, buttonText, statusText) {
+            inputLayer.classList.add('hidden');
+            actionLayer.classList.remove('hidden');
+            actionLayer.classList.add('flex');
+            bindingStatus.innerText = statusText;
+            
+            executionButtons.classList.add('hidden');
+            recurseLayer.classList.add('hidden');
+            btnDynamic.classList.remove('hidden');
+
+            if (mode === 'EXECUTION_CHOICE') {
+                btnDynamic.classList.add('hidden');
+                executionButtons.classList.remove('hidden');
+                executionButtons.classList.add('focus-flash');
+                setTimeout(() => executionButtons.classList.remove('focus-flash'), 3000);
+            } else if (mode === 'RECURSE') {
+                btnDynamic.classList.add('hidden');
+                recurseLayer.classList.remove('hidden');
+            } else {
+                btnDynamic.innerText = buttonText;
+                btnDynamic.onclick = callback;
+            }
+            scrollToBottom();
+        }
+
+        // --- GEMINI API ---
+        async function runGeminiWithRetry(payload, maxRetries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    let resultText = data.candidates[0].content.parts[0].text;
+                    
+                    if(payload.generationConfig && payload.generationConfig.responseMimeType === "application/json") {
+                        try { return JSON.parse(resultText); } 
+                        catch(err) {
+                            try { return JSON.parse(resultText.replace(/```(json)?/g, '').trim()); } 
+                            catch(err2) { throw new Error("Unparseable JSON."); }
+                        }
+                    }
+                    return resultText;
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, delays[i]));
+                }
+            }
+        }
+
+        async function generateImagenBase64(promptText, maxRetries = 3) {
+            const delays = [2000, 4000, 8000];
+            const payload = { instances: { prompt: promptText }, parameters: { sampleCount: 1 } };
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    return data.predictions[0].bytesBase64Encoded;
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, delays[i]));
+                }
+            }
+        }
+
+        function formatMarkdownForUI(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#ff0055] px-1">$1</strong>')
+                .replace(/### (.*?)\n/g, '<h3 class="font-bold text-sm mt-4 mb-2 border-b-2 border-black uppercase">$1</h3>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // --- SCHEMAS ---
+        const genotypeSchema = {
+            type: "OBJECT", properties: {
+                RSN: {type: "ARRAY", items: {type: "STRING"}},
+                EVD: {type: "ARRAY", items: {type: "STRING"}},
+                STY: {type: "ARRAY", items: {type: "STRING"}},
+                FLR: {type: "ARRAY", items: {type: "STRING"}},
+                MUT: {type: "ARRAY", items: {type: "STRING"}},
+                SEL: {type: "ARRAY", items: {type: "STRING"}}
+            }
+        };
+
+        const punnettSchema = {
+            type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "STRING"}, name: {type: "STRING"}, traits: {type: "ARRAY", items: {type: "STRING"}}, fitness_prediction: {type: "STRING"} } }
+        };
+
+        const assaySchema = {
+            type: "OBJECT", properties: { expressed_phenotype: {type: "STRING"}, dominant_traits_revealed: {type: "ARRAY", items: {type: "STRING"}}, status: {type: "STRING"} }
+        };
+
+        // --- GENETIC PIPELINE LOGIC ---
+
+        async function executeTranscription() {
+            currentState.specimenText = document.getElementById('specimen-input').value.trim();
+            if(!currentState.specimenText && !currentState.imageBase64) return;
+
+            inputLayer.classList.add('hidden');
+            document.getElementById('generation-counter').innerText = currentState.generation.toString().padStart(3, '0');
+            
+            appendLog(`[ GEN-${currentState.generation} ] :: TRANSCRIBING ENVIRONMENTAL MEDIUM... <span class="loader-block"></span>`);
+
+            let parts = [{ text: `Transcribe Genotype from Environment: "${currentState.specimenText}"` }];
+            if (currentState.imageBase64) {
+                parts.push({ inlineData: { mimeType: currentState.imageMimeType || "image/png", data: currentState.imageBase64 } });
+            }
+
+            const payload = {
+                contents: [{ parts: parts }],
+                systemInstruction: { parts: [{ text: GENOTYPE_TRANSCRIPTION_PROMPT }] },
+                generationConfig: { responseMimeType: "application/json", responseSchema: genotypeSchema }
+            };
+
+            try {
+                const rawGenotype = await runGeminiWithRetry(payload);
+                document.querySelector('.loader-block')?.remove();
+                addLogEntry('INGESTION : GENOTYPE TRANSCRIPTION', payload, rawGenotype, { environment: currentState.specimenText });
+                renderGenomaScope(rawGenotype);
+                updateRoute(1);
+                setActionState('MEIOSIS', executeMeiosis, 'EXECUTE : PUNNETT MEIOSIS & CROSS', 'GENOTYPE LOCI SECURED');
+            } catch (e) {
+                document.querySelector('.loader-block')?.remove();
+                appendLog(`[ EXTINCTION ] :: TRANSCRIPTION FAILED. Format collapse.`, true);
+                setActionState('RESET', hardResetSystem, 'REBOOT INCUBATOR', 'SYSTEM FAULT');
+            }
+        }
+
+        // --- GENOMA SCOPE UI (LOCUS BASED) ---
+        function renderGenomaScope(genotype) {
+            currentState.currentGenoma = [];
+            
+            LOCUS_ORDER.forEach(locus => {
+                if(genotype[locus]) {
+                    genotype[locus].forEach(payload => {
+                        currentState.currentGenoma.push({
+                            id: Math.random().toString(36).substr(2,9),
+                            locus: locus,
+                            type: locus, 
+                            payload: payload,
+                            active: true // Active = Dominant, Inactive = Recessive
+                        });
+                    });
+                }
+            });
+            
+            const containerId = `genoma-scope-${currentState.generation}`;
+            appendLog(`<div id="${containerId}"></div>`);
+            updateGenomaUI(containerId);
+        }
+
+        window.toggleCodon = function(id, containerId) {
+            const codon = currentState.currentGenoma.find(c => c.id === id);
+            if(codon) codon.active = !codon.active;
+            updateGenomaUI(containerId);
+        }
+
+        function updateGenomaUI(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            let lociHtml = '';
+            LOCUS_ORDER.forEach(locus => {
+                const locusCodons = currentState.currentGenoma.filter(c => c.locus === locus);
+                if(locusCodons.length === 0) return;
+                
+                const typeInfo = CODON_TYPES[locus] || CODON_TYPES['UNK'];
+                
+                const codonsHtml = locusCodons.map(c => `
+                    <div class="codon cursor-pointer ${c.active ? '' : 'intron'}" onclick="toggleCodon('${c.id}', '${containerId}')" title="Click to toggle DOMINANT / RECESSIVE">
+                        <div class="codon-type" style="background-color: ${typeInfo.color};">${c.type}</div>
+                        <div class="codon-payload">${c.payload}</div>
+                        ${c.active ? '<div class="dominance-marker">DOM</div>' : ''}
+                    </div>
+                `).join('');
+
+                lociHtml += `
+                    <div class="locus-group">
+                        <div class="locus-label">${typeInfo.name}</div>
+                        ${codonsHtml}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="font-bold border-b-2 border-black pb-2 mb-2 flex items-center justify-between">
+                    <span>[ GEN-${currentState.generation} ] GENOTYPE ARCHITECTURE</span>
+                    <span class="text-[9px] bg-black text-white px-2 py-1 tracking-widest">CLICK ALLELES TO TOGGLE DOMINANT/RECESSIVE</span>
+                </div>
+                <div class="scope-container border-4 border-black rounded-sm p-4 w-full">
+                    <div class="text-[var(--accent-color)] font-bold text-sm mb-5 border-b border-[var(--border-color)] pb-2 flex justify-between">
+                        <span>PARENT LOCI MAP</span>
+                        <span>[ ${currentState.currentGenoma.length} ALLELES ]</span>
+                    </div>
+                    <div class="scope-scrollbar max-h-80 overflow-y-auto pr-2 pt-2">
+                        ${lociHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function executeMeiosis() {
+            btnDynamic.innerText = "PERFORMING MEIOSIS & CROSS...";
+            btnDynamic.disabled = true;
+
+            const dominantAlleles = currentState.currentGenoma.filter(c => c.active).map(c => `[${c.type}] ${c.payload}`);
+            const recessiveAlleles = currentState.currentGenoma.filter(c => !c.active).map(c => `[${c.type}] ${c.payload}`);
+
+            const payload = {
+                contents: [{ parts: [{ text: `Recombine Dominant Gametes: ${JSON.stringify(dominantAlleles)}. (Recessive/Latent: ${JSON.stringify(recessiveAlleles)}). Generate exactly 4 offspring genotypes.` }] }],
+                systemInstruction: { parts: [{ text: STRICT_MEIOSIS_PROMPT }] },
+                generationConfig: { responseMimeType: "application/json", responseSchema: punnettSchema }
+            };
+
+            try {
+                const results = await runGeminiWithRetry(payload);
+                currentState.genomes = results.slice(0, 4); 
+                addLogEntry('MEIOSIS : PUNNETT CROSS', payload, currentState.genomes);
+                renderPunnettSquare(currentState.genomes);
+                updateRoute(2);
+                btnDynamic.disabled = false;
+                setActionState('WAIT', null, '[ BIND OFFSPRING FOR EXPRESSION ]', 'PUNNETT OFFSPRING READY');
+            } catch (e) {
+                btnDynamic.disabled = false;
+                appendLog(`[ EXTINCTION ] :: MEIOSIS FAILED. Format collapse.`, true);
+                setActionState('RESET', hardResetSystem, 'REBOOT INCUBATOR', 'SYSTEM FAULT');
+            }
+        }
+
+        function renderPunnettSquare(genomes) {
+            appendLog(`[ SYSTEM ] :: PUNNETT SQUARE PREDICTIVE GRID GENERATED.`);
+            const getTraitName = (g) => g && g.traits && g.traits.length > 0 ? g.traits[0].replace(/\[.*?\] /, '').substring(0,15) : 'Variant';
+
+            const container = document.createElement('div');
+            container.className = 'w-full mt-4 flex justify-center';
+            
+            let gridHtml = `
+                <div class="punnett-grid w-full aspect-square max-h-[450px]">
+                    <div class="punnett-header">GAMETE MATRIX</div>
+                    <div class="punnett-header uppercase text-[#ff0055]">${getTraitName(genomes[0])}</div>
+                    <div class="punnett-header uppercase text-[#ff0055]">${getTraitName(genomes[1])}</div>
+                    <div class="punnett-header vertical uppercase text-[#ff0055]">${getTraitName(genomes[2])}</div>
+                </div>
+            `;
+            
+            container.innerHTML = gridHtml;
+            const gridEl = container.querySelector('.punnett-grid');
+
+            genomes.forEach((g, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'punnett-cell control-surface flex flex-col justify-center items-center text-center p-2';
+                if(idx === 2) {
+                    const vHead = document.createElement('div');
+                    vHead.className = 'punnett-header vertical uppercase text-[#ff0055]';
+                    vHead.innerText = getTraitName(genomes[3]);
+                    gridEl.appendChild(vHead);
+                }
+                
+                // Genoma Chromosome Band visualization
+                const bandsHtml = (g.traits || []).map(t => {
+                    const c = parseTraitToCodon(t);
+                    const typeInfo = CODON_TYPES[c.type] || CODON_TYPES['UNK'];
+                    return `<div class="codon-band" style="background-color: ${typeInfo.color};" title="${c.type}: ${c.payload.replace(/"/g, '&quot;')}"></div>`;
+                }).join('');
+
+                cell.innerHTML = `
+                    <div class="font-bold text-[10px] bg-black text-white px-1 mb-1">[${g.id}]</div>
+                    
+                    <!-- Chromosomal Band Overlay -->
+                    <div class="codon-band-container mb-2 h-12">
+                        ${bandsHtml}
+                    </div>
+
+                    <div class="font-bold text-xs truncate w-full">${g.name}</div>
+                    <div class="text-[9px] mt-1 text-neutral-600 truncate w-full italic">${g.fitness_prediction || 'Hybrid'}</div>
+                `;
+                cell.onclick = () => {
+                    document.querySelectorAll('.punnett-cell').forEach(n => n.classList.remove('active-bind'));
+                    cell.classList.add('active-bind');
+                    currentState.boundGenome = g;
+                    setActionState('ASSAY', () => executeSelection(g), `EVALUATE PHENOTYPE IN FIELD [ ${g.id} ]`, `GAMETE BOUND: ${g.name}`);
+                };
+                gridEl.appendChild(cell);
+            });
+
+            logAnchor.appendChild(container);
+            scrollToBottom();
+        }
+
+        async function executeSelection(genome) {
+            btnDynamic.innerText = "EXPRESSING PHENOTYPE IN FIELD...";
+            btnDynamic.disabled = true;
+
+            const dominantAlleles = currentState.currentGenoma.filter(c => c.active).map(c => `[${c.type}] ${c.payload}`);
+            const payload = {
+                contents: [{ parts: [{ text: `Express Phenotype for genotype: ${JSON.stringify(genome)}. Root context: ${JSON.stringify(dominantAlleles)}. Generate the synthesized instruction set and identify which traits achieved dominance. SURVIVOR or EXTINCT.` }] }],
+                systemInstruction: { parts: [{ text: "You evaluate Phenotypic Fitness. Return the consolidated expressed phenotype instruction block, list the traits that achieved dominance in the output, and declare survival status." }] },
+                generationConfig: { responseMimeType: "application/json", responseSchema: assaySchema }
+            };
+
+            try {
+                const result = await runGeminiWithRetry(payload);
+                const isSurvivor = result.status === 'SURVIVOR';
+                addLogEntry('SELECTION : PHENOTYPE FIELD TEST', payload, result, { targetGenome: genome.name });
+                
+                let html = `<div class="font-bold border-b-2 border-black pb-2 mb-2 ${isSurvivor ? 'text-[#ff0055]' : 'line-through text-gray-400'}">SELECTION RESULT :: ${result.status}</div>`;
+                
+                if (isSurvivor) {
+                     html += `
+                         <div class="mb-2">
+                             <span class="text-[10px] font-bold bg-black text-white px-1">DOMINANT ALLELES EXPRESSED:</span>
+                             <div class="text-[10px] font-mono mt-1">${result.dominant_traits_revealed.join(' | ')}</div>
+                         </div>
+                         <div class="font-bold text-xs mt-4 mb-1 border-b border-black inline-block">EXPRESSED PHENOTYPE:</div>
+                         <div class="border-l-4 border-[#ff0055] pl-3 py-2 text-xs font-mono bg-[#0a0c10] text-[#c9d1d9] shadow-inner">${formatMarkdownForUI(result.expressed_phenotype)}</div>`;
+                }
+                
+                appendLog(html, !isSurvivor);
+                updateRoute(3);
+                btnDynamic.disabled = false;
+                
+                if (isSurvivor) {
+                    currentState.winningPhenotype = result.expressed_phenotype;
+                    setActionState('EXECUTION_CHOICE', null, null, `FITNESS SECURED :: SELECT MUTATION PRESSURE OR EXPRESS ARTIFACT`);
+                } else {
+                    setActionState('RECURSE', null, null, `EXTINCTION EVENT. DEAD END REACHED.`);
+                    currentState.lastArtifactType = 'CODE';
+                    currentState.lastArtifactText = currentState.specimenText;
+                }
+            } catch (e) {
+                btnDynamic.disabled = false;
+                appendLog(`[ EXTINCTION ] :: FIELD TEST FAILED. Schema collapse.`, true);
+                setActionState('RESET', hardResetSystem, 'REBOOT INCUBATOR', 'SYSTEM FAULT');
+            }
+        }
+
+        // 4A. ARTIFICIAL MUTATION
+        async function executeMutation(operator) {
+            if (!currentState.winningPhenotype || !currentState.boundGenome) return;
+            
+            const actionLayerBtns = document.querySelectorAll('#execution-buttons button');
+            actionLayerBtns.forEach(btn => btn.disabled = true);
+            
+            const logMsg = `APPLYING GENETIC MUTATION: [ ${operator} ]`;
+            const loadEl = appendLog(`[ MUTATION PRESSURE ] :: ${logMsg}... <span class="loader-block"></span>`);
+
+            try {
+                const payload = {
+                    contents: [{ parts: [{ text: `Operator: ${operator}\n\nGenome Bound:\n${JSON.stringify(currentState.boundGenome)}\n\nCurrent Phenotype Expression:\n"${currentState.winningPhenotype}"\n\nExecute the Mutation.` }] }],
+                    systemInstruction: { parts: [{ text: CONTEXT_MUTATION_PROMPT }] }
+                };
+                
+                const mutatedPrompt = await runGeminiWithRetry(payload);
+                loadEl.remove();
+                
+                addLogEntry(`MUTATION : ${operator}`, payload, mutatedPrompt, { previousPhenotype: currentState.winningPhenotype });
+                currentState.winningPhenotype = mutatedPrompt;
+                
+                const htmlResponse = `
+                    <div class="font-bold border-b-2 border-black pb-2 mb-2 bg-[#ff0055] text-white px-2">GENETIC SHIFT :: ${operator} APPLIED</div>
+                    <div class="border-4 border-black p-4 text-xs font-mono bg-white">${formatMarkdownForUI(mutatedPrompt)}</div>
+                `;
+                appendLog(htmlResponse);
+                
+                actionLayerBtns.forEach(btn => btn.disabled = false);
+                bindingStatus.innerText = "MUTATION SECURED :: READY FOR ARTIFACT EXPRESSION";
+                scrollToBottom();
+            } catch (e) {
+                loadEl.remove();
+                appendLog(`[ REJECTION ] :: MUTATION LETHAL. REVERTING.`, true);
+                actionLayerBtns.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        // 4B. EXPRESS FINAL ARTIFACT (PHENOTYPE MANIFESTATION)
+        async function executePhenotype(mode) {
+            if (!currentState.winningPhenotype) return;
+            
+            const actionLayerBtns = document.querySelectorAll('#execution-buttons button');
+            actionLayerBtns.forEach(btn => btn.disabled = true);
+            const loadEl = appendLog(`[ MANIFESTATION ] :: EXPRESSING ${mode} ARTIFACT... <span class="loader-block"></span>`);
+
+            try {
+                if (mode === 'CODE') {
+                    const combinedInstruction = `${CONTEXT_GENETICS_POML}\n\n[ OVERRIDE OUTPUT FORMATTING FOR I-FRAME RUNTIME ]\n${NAURIAN_ENGINE_PROMPT}\n\nEXPRESSED PHENOTYPE (APPLY TO INPUT):\n${currentState.winningPhenotype}`;
+                    
+                    const payload = {
+                        contents: [{ parts: [{ text: `Environmental Medium / Specimen: "${currentState.specimenText}". Execute the System Instruction.` }] }],
+                        systemInstruction: { parts: [{ text: combinedInstruction }] }
+                    };
+                    
+                    const rawText = await runGeminiWithRetry(payload);
+                    loadEl.remove();
+                    
+                    addLogEntry('EXPRESSION : CODE ARTIFACT', payload, rawText);
+                    
+                    const htmlMatch = rawText.match(/```html\n([\s\S]*?)```/);
+                    const htmlContent = htmlMatch ? htmlMatch[1] : "";
+                    const theoryContent = rawText.replace(/```html[\s\S]*?```/, '').trim();
+                    
+                    currentState.lastArtifactType = 'CODE';
+                    currentState.lastArtifactText = theoryContent + "\n\n" + htmlContent; 
+                    
+                    const htmlResponse = `
+                        <div class="font-bold border-b-2 border-black pb-2 mb-2 flex justify-between">
+                            <span>MANIFESTATION :: PROGRAM THEORY</span>
+                        </div>
+                        <div class="text-[10px] font-mono whitespace-pre-wrap overflow-x-auto mb-4 border-l-2 border-[#ff0055] pl-2">${theoryContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                        ${htmlContent ? `
+                        <div class="font-bold border-b-2 border-black pb-2 mb-2">MANIFESTATION :: OPERATIONAL SURFACE (IFRAME)</div>
+                        <div class="border-4 border-black w-full relative group">
+                            <iframe srcdoc="${htmlContent.replace(/"/g, '&quot;')}" class="w-full h-96 bg-white" sandbox="allow-scripts allow-same-origin"></iframe>
+                        </div>` : ''}
+                    `;
+                    appendLog(htmlResponse);
+                    updateRoute(4);
+
+                } else if (mode === 'IMAGE') {
+                    const imagePrompt = `A strict, minimalist, highly functional software UI design reflecting this phenotype instruction: ${currentState.winningPhenotype}. Vector style, stark contrast, clear affordances, modern dashboard.`;
+                    const payload = { instances: { prompt: imagePrompt }, parameters: { sampleCount: 1 } };
+                    const rawBase64 = await generateImagenBase64(imagePrompt);
+                    loadEl.remove();
+
+                    addLogEntry('EXPRESSION : VISION ARTIFACT', payload, "[BASE64_IMAGE_DATA_TRUNCATED]");
+
+                    currentState.lastArtifactType = 'IMAGE';
+                    currentState.lastArtifactImage = rawBase64;
+                    currentState.lastArtifactText = "[ VISION ARTIFACT BOUND ]";
+
+                    const htmlResponse = `
+                        <div class="font-bold border-b-2 border-black pb-2 mb-2">MANIFESTATION :: VISION PHENOTYPE</div>
+                        <img src="data:image/png;base64,${rawBase64}" class="w-full border-4 border-black mb-2" alt="Generated Vision">
+                        <div class="text-[10px] uppercase text-center mt-2 font-bold text-[#ff0055]">EXPRESSED VIA IMAGEN 4.0</div>
+                    `;
+                    appendLog(htmlResponse);
+                    updateRoute(4);
+                }
+                
+                actionLayerBtns.forEach(btn => btn.disabled = false);
+                setActionState('RECURSE', null, null, `PHENOTYPE MANIFESTED :: READY FOR SELECTIVE SWEEP`);
+
+            } catch (e) {
+                loadEl.remove();
+                appendLog(`[ EXTINCTION ] :: MANIFESTATION FAILED. Generative collapse.`, true);
+                actionLayerBtns.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        // 5. RECURSE (SELECTIVE SWEEP COMPRESSION)
+        function executeSweep() {
+            if (!currentState.lastArtifactType) return hardResetSystem();
+
+            currentState.generation++;
+            logAnchor.innerHTML = '';
+            
+            const divider = document.createElement('div');
+            divider.className = "w-full border-4 border-[#ff0055] bg-black text-white p-4 text-center font-bold text-xl tracking-widest my-8";
+            divider.innerText = `=== BOTTLENECK / SWEEP :: GENERATION ${currentState.generation.toString().padStart(3, '0')} ===`;
+            logAnchor.appendChild(divider);
+
+            const imgContainer = document.getElementById('img-upload-container');
+            const previewImg = document.getElementById('reingest-preview');
+            const inputArea = document.getElementById('specimen-input');
+
+            if (currentState.lastArtifactType === 'IMAGE') {
+                currentState.imageBase64 = currentState.lastArtifactImage;
+                currentState.imageMimeType = "image/png";
+                imgContainer.classList.remove('hidden');
+                previewImg.src = `data:image/png;base64,${currentState.imageBase64}`;
+                previewImg.classList.remove('hidden');
+                inputArea.value = `[ SELECTIVE SWEEP: VISION ARTIFACT INHERITED FROM GEN-${currentState.generation - 1} ]\n\nProvide selection pressure to drive the next Meiosis cycle.`;
+            } else {
+                inputArea.value = currentState.lastArtifactText.substring(0, 1500) + "\n\n...[TRUNCATED LINEAGE COMPRESSION]";
+                currentState.imageBase64 = null;
+                document.getElementById('image-upload').value = '';
+                previewImg.classList.add('hidden');
+            }
+
+            currentState.currentGenoma = [];
+            currentState.genomes = [];
+            currentState.boundGenome = null;
+            currentState.winningPhenotype = null;
+            
+            updateRoute(0);
+            
+            actionLayer.classList.add('hidden');
+            actionLayer.classList.remove('flex');
+            recurseLayer.classList.add('hidden');
+            inputLayer.classList.remove('hidden');
+            
+            window.scrollTo(0, 0);
+        }
+
+        function hardResetSystem() {
+            currentState = {
+                generation: 1, specimenText: "", imageBase64: null, imageMimeType: null,
+                currentGenoma: [], genomes: [], boundGenome: null, winningPhenotype: null,
+                lastArtifactType: null, lastArtifactText: null, lastArtifactImage: null,
+                stateHistory: currentState.stateHistory
+            };
+            logAnchor.innerHTML = '';
+            document.getElementById('specimen-input').value = '';
+            document.getElementById('image-upload').value = '';
+            document.getElementById('reingest-preview').classList.add('hidden');
+            document.getElementById('generation-counter').innerText = '001';
+            
+            updateRoute(0);
+            actionLayer.classList.add('hidden');
+            actionLayer.classList.remove('flex');
+            recurseLayer.classList.add('hidden');
+            inputLayer.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>
