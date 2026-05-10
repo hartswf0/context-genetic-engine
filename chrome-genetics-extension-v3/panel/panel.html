@@ -102,6 +102,10 @@
     .codon-tools{display:flex;gap:4px;align-items:center;}
     .codon-tools .pheno-btn{font-size:8px;padding:2px 6px;}
     .weight-input{width:48px;background:#050505;border:1px solid var(--border);border-radius:3px;color:var(--dim);font-family:var(--mono);font-size:9px;padding:2px 4px;}
+    .image-preview-rail{display:flex;gap:6px;overflow-x:auto;min-height:56px;padding-bottom:2px;}
+    .image-thumb{width:62px;min-width:62px;border:1px solid var(--border);border-radius:4px;background:var(--bg);overflow:hidden;}
+    .image-thumb img{display:block;width:100%;height:42px;object-fit:cover;background:#000;}
+    .image-thumb span{display:block;padding:3px 4px;font:8px/1.2 var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
     /* BREED SLOTS */
     .breed-slot{border:2px dashed var(--border);border-radius:6px;padding:12px;text-align:center;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.15s;cursor:pointer;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;}
@@ -203,6 +207,10 @@
         <button class="btn accent" id="btn-load-genome" disabled>→ Edit Genotype</button>
         <button class="btn purple" id="btn-ai-encode" disabled>AI Encode</button>
       </div>
+      <div class="grid-2" style="margin-top:8px;">
+        <button class="btn accent" id="btn-adopt-panel" disabled>Adopt Panel</button>
+        <button class="btn purple" id="btn-apply-page-genetics" disabled>Mutate Page</button>
+      </div>
     </div>
 
     <div class="section" id="extracted-codons-section" style="display:none;">
@@ -233,6 +241,13 @@
         <button class="btn accent btn-add-codon" data-type="FIT" data-payload="Optimize for fidelity, clarity, and working affordance.">+ FIT</button>
         <button class="btn accent btn-add-codon" data-type="FLR" data-payload="If blocked, state the missing condition and produce the closest safe fallback.">+ FLR</button>
         <button class="btn accent btn-add-codon" data-type="CST" data-payload="">+ CST</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--pink)"></div>Image Evidence</div>
+      <input class="input" id="image-evidence-input" type="file" accept="image/*" multiple style="margin-bottom:8px;">
+      <div id="image-evidence-preview" class="image-preview-rail">
+        <div class="hint">No image evidence attached.</div>
       </div>
     </div>
     <div class="section">

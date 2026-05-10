@@ -89,6 +89,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
 
+    // ── EXPERIMENT: Apply a reversible genetic stylesheet to the active tab
+    case 'APPLY_PAGE_CSS': {
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (!tabs[0]) return sendResponse({ error: 'No active tab' });
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: applyPageGeneticsCss,
+            args: [payload.css || '']
+          });
+          sendResponse({ ok: true });
+        } catch (e) {
+          sendResponse({ error: e.message });
+        }
+      });
+      return true;
+    }
+
     // ── STORAGE: Save a genome to the lineage vault
     case 'SAVE_GENOME': {
       const key = `genome:${Date.now()}`;
@@ -494,4 +512,15 @@ function toggleDOMOverlay(genome, show) {
       });
     } catch (e) {}
   });
+}
+
+function applyPageGeneticsCss(css) {
+  const STYLE_ID = '__dom_genetics_mutation_style__';
+  let style = document.getElementById(STYLE_ID);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = STYLE_ID;
+    document.documentElement.appendChild(style);
+  }
+  style.textContent = String(css || '');
 }

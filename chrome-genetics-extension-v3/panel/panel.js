@@ -17,7 +17,8 @@
 'use strict';
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
-let currentGenome = null;       // <DOMGenome> just extracted, not yet saved
+let currentGenome = null;       // <PromptGenome> currently edited and expressed
+let rawPageGenome = null;       // <DOMGenome> extracted evidence used for page annotation
 let lineage = {};               // All stored genomes from vault
 let parentA = null;             // <DOMGenome> selected as Parent A
 let parentB = null;             // <DOMGenome> selected as Parent B
@@ -25,6 +26,7 @@ let lastPhenotype = '';         // Last <Phenotype> HTML output
 let lastFieldArtifact = '';     // Last direct genotype expression artifact
 let phenotypeBlobUrl = '';
 let fieldBlobUrl = '';
+let imageEvidence = [];         // User supplied image files as field evidence
 let overlayActive = false;      // Whether the DOM annotation overlay is on
 let apiKey = '';                // Backwards-compatible shortcut for modelConfig.apiKey
 let modelConfig = {
@@ -103,6 +105,8 @@ function bindUI() {
     switchTab('genome');
   });
   document.getElementById('btn-ai-encode')?.addEventListener('click', aiEncodeCurrentContext);
+  document.getElementById('btn-adopt-panel')?.addEventListener('click', adoptPageGeneticsIntoPanel);
+  document.getElementById('btn-apply-page-genetics')?.addEventListener('click', applyPageGeneticsToActiveTab);
   document.getElementById('btn-refresh-lineage')?.addEventListener('click', loadLineage);
   document.getElementById('btn-goto-breed')?.addEventListener('click', () => switchTab('breed'));
   document.getElementById('slot-a')?.addEventListener('click', () => switchTab('lineage'));
@@ -126,6 +130,7 @@ function bindUI() {
   document.getElementById('btn-artifact-render')?.addEventListener('click', showArtifactRender);
   document.getElementById('btn-artifact-copy')?.addEventListener('click', copyFieldArtifact);
   document.getElementById('btn-artifact-dl')?.addEventListener('click', downloadFieldArtifact);
+  document.getElementById('image-evidence-input')?.addEventListener('change', handleImageEvidenceUpload);
   document.querySelectorAll('.btn-add-codon').forEach(btn => {
     btn.addEventListener('click', () => addCodon(btn.dataset.type, btn.dataset.payload || ''));
   });
@@ -279,6 +284,7 @@ async function extractCurrentPage() {
     }
 
     const rawGenome = normalizeGenome(response.genome);
+    rawPageGenome = rawGenome;
     currentGenome = transcribeDomGenome(rawGenome);
     renderExtractedCodons(rawGenome);
     renderGenomeEditor();
@@ -286,6 +292,8 @@ async function extractCurrentPage() {
     setBtn('btn-save', false);
     setBtn('btn-load-genome', false);
     setBtn('btn-ai-encode', false);
+    setBtn('btn-adopt-panel', false);
+    setBtn('btn-apply-page-genetics', false);
     setStatus(`EXTRACTED ${currentGenome.codons.length} CODONS`, 'ok');
     document.getElementById('count-extract').textContent = currentGenome.codons.length;
     updateGenomeCount();
@@ -489,6 +497,11 @@ function compileActiveGenome() {
     '',
     'ACTIVE EXON CODONS:',
     ...exons.map((c, index) => `${String(index + 1).padStart(2, '0')}. [${c.type}] W:${c.weight} ${c.payload}`),
+    ...(imageEvidence.length ? [
+      '',
+      'IMAGE EVIDENCE:',
+      ...imageEvidence.map((img, index) => `${String(index + 1).padStart(2, '0')}. ${img.name} (${img.type || 'image'}, ${img.sizeLabel})`)
+    ] : []),
     '',
     'INVARIANTS:',
     '- Preserve source fidelity unless the field task explicitly asks for transformation.',
@@ -572,12 +585,13 @@ function extractJSON(text) {
 // ─── OVERLAY ──────────────────────────────────────────────────────────────────
 // Theory: [annotate] operation — toggles the shadow-DOM overlay on the live page
 function toggleOverlay() {
-  if (!currentGenome) return;
+  const overlayGenome = rawPageGenome || currentGenome;
+  if (!overlayGenome) return;
   overlayActive = !overlayActive;
 
   chrome.runtime.sendMessage({
     type: 'TOGGLE_OVERLAY',
-    payload: { genome: currentGenome, show: overlayActive }
+    payload: { genome: overlayGenome, show: overlayActive }
   }, () => {
     const btn = document.getElementById('btn-overlay');
     const badge = document.getElementById('overlay-status');
@@ -593,6 +607,116 @@ function toggleOverlay() {
       badge.innerHTML = '';
     }
   });
+}
+
+// ─── PAGE / PANEL EXPERIMENTS ────────────────────────────────────────────────
+function adoptPageGeneticsIntoPanel() {
+  const colors = extractRgbColors(getRawCodonPayload('COLOR'));
+  const font = extractFontName(getRawCodonPayload('TYPOGRAPHY'));
+  const radius = radiusFromPayload(getRawCodonPayload('RADIUS'));
+  const root = document.documentElement;
+
+  if (colors[0]) root.style.setProperty('--primary', colors[0]);
+  if (colors[1]) root.style.setProperty('--teal', colors[1]);
+  if (colors[2]) root.style.setProperty('--purple', colors[2]);
+  if (colors[3]) root.style.setProperty('--yellow', colors[3]);
+  if (font) root.style.setProperty('--sans', `${JSON.stringify(font)}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`);
+  root.style.setProperty('--cge-adopted-radius', radius);
+
+  document.querySelectorAll('.btn,.input,.textarea,.codon-row,.genome-card,.pheno-wrap,.breed-slot').forEach(el => {
+    el.style.borderRadius = radius;
+  });
+
+  setStatus('PANEL ADOPTED PAGE GENETICS', 'ok');
+  setTimeout(() => setStatus('READY'), 2200);
+}
+
+function applyPageGeneticsToActiveTab() {
+  if (!rawPageGenome && !currentGenome) return;
+  const css = buildPageGeneticCss();
+  setStatus('MUTATING LIVE PAGE...', 'work');
+  chrome.runtime.sendMessage({
+    type: 'APPLY_PAGE_CSS',
+    payload: { css }
+  }, (resp) => {
+    if (!resp || resp.error) {
+      setStatus(`PAGE MUTATION FAILED: ${resp?.error || 'UNKNOWN'}`, 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+    setStatus('LIVE PAGE GENETICS APPLIED', 'ok');
+    setTimeout(() => setStatus('READY'), 2600);
+  });
+}
+
+function buildPageGeneticCss() {
+  const colors = extractRgbColors(getRawCodonPayload('COLOR'));
+  const primary = colors[0] || '#60a5fa';
+  const secondary = colors[1] || '#f472b6';
+  const font = extractFontName(getRawCodonPayload('TYPOGRAPHY'));
+  const radius = radiusFromPayload(getRawCodonPayload('RADIUS'));
+  const activeLabels = activeCodons().map(c => c.type).join(' ');
+  const sourceTitle = rawPageGenome?.sourceTitle || currentGenome?.sourceTitle || 'page';
+  const badgeText = cssContent(`CGE ${activeLabels || 'NO EXONS'} · ${sourceTitle}`);
+
+  return `
+    html::before {
+      content: "${badgeText}";
+      position: fixed;
+      left: 10px;
+      bottom: 10px;
+      z-index: 2147483646;
+      background: #000;
+      color: #fff;
+      border: 2px solid ${primary};
+      border-radius: 4px;
+      padding: 5px 8px;
+      font: 900 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: 0.08em;
+      pointer-events: none;
+      box-shadow: 0 0 0 2px ${secondary};
+    }
+    ${font ? `body, button, input, textarea, select { font-family: ${JSON.stringify(font)}, system-ui, sans-serif !important; }` : ''}
+    a, button, input, textarea, select, [role="button"] {
+      border-radius: ${radius} !important;
+    }
+    button, [role="button"], a[href] {
+      outline: 1px solid ${primary}66 !important;
+      outline-offset: 2px !important;
+    }
+    main, section, article, nav, header, footer, [class*="card"], [class*="panel"], [class*="container"] {
+      box-shadow: inset 0 0 0 1px ${secondary}33 !important;
+    }
+  `;
+}
+
+function getRawCodonPayload(type) {
+  const raw = rawPageGenome?.codons?.length ? rawPageGenome.codons : (currentGenome?.rawCodons || []);
+  const codon = raw.find(c => (c.type || c.locus) === type);
+  return codon?.payload || '';
+}
+
+function extractRgbColors(text) {
+  return [...String(text || '').matchAll(/rgba?\([^)]+\)/g)].map(match => match[0]).slice(0, 8);
+}
+
+function extractFontName(text) {
+  const match = String(text || '').match(/Fonts:\s*([^.,]+)/);
+  if (!match) return '';
+  const font = match[1].replace(/['"]/g, '').trim();
+  return /^[\w -]{2,48}$/.test(font) ? font : '';
+}
+
+function radiusFromPayload(text) {
+  const payload = String(text || '');
+  if (/PILL|9999px|50%/i.test(payload)) return '999px';
+  if (/SOFT/i.test(payload)) return '16px';
+  if (/SLIGHTLY_ROUNDED/i.test(payload)) return '6px';
+  return '2px';
+}
+
+function cssContent(text) {
+  return String(text || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 }
 
 // ─── SAVE TO LINEAGE ──────────────────────────────────────────────────────────
@@ -743,6 +867,9 @@ function loadGenomeFromLineage(key) {
   const genome = lineage[key];
   if (!genome) return;
   currentGenome = normalizeGenome({ ...genome, codons: genome.codons.map(c => ({ ...c })) });
+  rawPageGenome = currentGenome.rawCodons?.length
+    ? normalizeGenome({ ...currentGenome, codons: currentGenome.rawCodons.map(c => ({ ...c })) })
+    : null;
   renderGenomeEditor();
   switchTab('genome');
   setStatus('GENOME LOADED FOR EDITING', 'ok');
@@ -1044,10 +1171,16 @@ function useCurrentPageAsField() {
   if (!field) return;
 
   const genome = ensureActiveGenome();
+  const rawGenome = rawPageGenome || { codons: genome.rawCodons || [] };
+  const rawCodons = rawGenome.codons?.length ? rawGenome.codons : genome.codons;
   const summary = [
     `Source: ${genome.sourceTitle || 'Unknown'}`,
     `URL: ${genome.sourceUrl || 'Unknown'}`,
     '',
+    'RAW PAGE ALLELES:',
+    ...rawCodons.map(c => `[${c.type || c.locus}] ${c.payload}`),
+    '',
+    'ACTIVE PROMPT GENOTYPE:',
     ...genome.codons.map(c => `[${c.type}] ${c.payload}`)
   ].join('\n');
 
@@ -1226,6 +1359,66 @@ async function askCodon(index) {
   });
 }
 
+// ─── IMAGE EVIDENCE ──────────────────────────────────────────────────────────
+function handleImageEvidenceUpload(event) {
+  const files = [...(event.target.files || [])]
+    .filter(file => file.type.startsWith('image/'))
+    .slice(0, 8);
+  if (!files.length) return;
+
+  Promise.all(files.map(readImageEvidenceFile)).then(items => {
+    const loaded = items.filter(Boolean);
+    imageEvidence = [...imageEvidence, ...loaded].slice(-8);
+    renderImageEvidencePreview();
+    renderCompiledPrompt();
+    setStatus(`IMAGE EVIDENCE LOADED: ${loaded.length}`, 'ok');
+    setTimeout(() => setStatus('READY'), 2200);
+  });
+}
+
+function readImageEvidenceFile(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      sizeLabel: humanBytes(file.size),
+      dataUrl: reader.result
+    });
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderImageEvidencePreview() {
+  const rail = document.getElementById('image-evidence-preview');
+  if (!rail) return;
+  rail.textContent = '';
+  if (!imageEvidence.length) {
+    const empty = document.createElement('div');
+    empty.className = 'hint';
+    empty.textContent = 'No image evidence attached.';
+    rail.appendChild(empty);
+    return;
+  }
+
+  imageEvidence.forEach(item => {
+    const thumb = document.createElement('div');
+    thumb.className = 'image-thumb';
+
+    const img = document.createElement('img');
+    img.src = item.dataUrl;
+    img.alt = '';
+
+    const label = document.createElement('span');
+    label.textContent = item.name;
+
+    thumb.append(img, label);
+    rail.appendChild(thumb);
+  });
+}
+
 // ─── PHENOTYPE RENDERING ──────────────────────────────────────────────────────
 function extractHTML(text) {
   const match = text.match(/```(?:html|HTML)?\n([\s\S]*?)```/i);
@@ -1367,6 +1560,19 @@ function clearAllLineage() {
 function setBtn(id, disabled) {
   const el = document.getElementById(id);
   if (el) el.disabled = disabled;
+}
+
+function truncateText(text, max = 1200) {
+  const value = String(text || '');
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}\n...[truncated ${value.length - max} chars]`;
+}
+
+function humanBytes(bytes) {
+  const size = Number(bytes || 0);
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function makeId() {
