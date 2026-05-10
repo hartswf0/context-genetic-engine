@@ -9,7 +9,8 @@ const DEFAULT_MODEL_CONFIG = {
   provider: 'gemini',
   apiKey: '',
   endpoint: '',
-  model: ''
+  model: '',
+  codonPassCount: 1
 };
 
 const PROVIDER_DEFAULTS = {
@@ -225,7 +226,8 @@ function normalizeModelConfig(config = {}) {
     apiKey: String(config.apiKey || config.api_key || '').trim(),
     endpoint: String(config.endpoint || defaults.endpoint).trim(),
     model: String(config.model || defaults.model).trim(),
-    reasoningEffort: String(config.reasoningEffort || config.reasoning_effort || (provider === 'openai' ? 'high' : 'none')).trim()
+    reasoningEffort: String(config.reasoningEffort || config.reasoning_effort || (provider === 'openai' ? 'high' : 'none')).trim(),
+    codonPassCount: Math.max(1, Math.min(3, Number(config.codonPassCount || config.codon_pass_count || 1)))
   };
 }
 

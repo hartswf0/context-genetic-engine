@@ -5,7 +5,7 @@ This is the Chrome extension version of the Context Genetics suite.
 ## Program Loop
 
 ```text
-web page -> Scan DOM -> choose encoder grammar -> editable prompt genome -> field target task -> completion artifact or live page overlay
+web page -> Scan DOM evidence -> choose encoder grammar -> editable prompt genome -> codon ask/mutate/artifact -> field target task -> completion artifact or live page overlay
 saved genomes -> lineage vault -> parent selection -> Punnett cross -> expressed offspring
 ```
 
@@ -20,11 +20,11 @@ saved genomes -> lineage vault -> parent selection -> Punnett cross -> expressed
 ## Panels
 
 - `Extract`: samples the active tab into raw DOM observations, lets you choose `g1`, `f4`, `phub`, or `hybrid`, then transcribes evidence into that genome grammar.
-- `Genome`: edits the active genotype, toggles EXON/INTRON state, adds manual codons, attaches codon reference images, and lets you query or mutate individual codons inline.
+- `Genome`: edits the active genotype, toggles EXON/INTRON state, nests raw DOM alleles under prompt codons as evidence, adds manual codons, attaches codon reference images, and lets you query, mutate, or express individual codons inline.
 - `Field`: applies the active genotype to a target task, renders a completion artifact, and can apply that artifact as a reversible live-page overlay.
 - `Lineage`: stores and reloads genomes.
 - `Breed`: selects two parents and expresses crossed offspring.
-- `Config`: chooses Gemini, OpenAI Reasoning, Anthropic, or local Llama.
+- `Config`: chooses Gemini, OpenAI Reasoning, Anthropic, or local Llama, and sets codon candidate count for mutation passes.
 
 ## Provider Setup
 
@@ -41,7 +41,7 @@ Keys are stored in `chrome.storage.local`; do not commit real keys.
 2. Open a normal `https://` page.
 3. Click the extension icon.
 4. Choose an encoder grammar and scan the page. `g1` produces prompt loci; `f4` produces operational loci; `phub` produces lineage/breeding loci.
-5. Click `Edit Prompt`; toggle a codon, attach a reference image, ask an individual codon, mutate a codon, or add a manual codon.
+5. Click `Edit Prompt`; expand Evidence alleles under a codon, attach a reference image, ask an individual codon, mutate a codon, express a codon artifact, or add a manual codon.
 6. Go to `Field`, add a target task, click `Express Artifact`, then click `APPLY` to see the output on the live page.
 7. Without a key, the panel should show the compiled prompt instead of crashing.
 8. Save the genome to lineage, reload the lineage tab, and confirm the card remains available.
