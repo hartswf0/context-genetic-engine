@@ -83,8 +83,8 @@ async function loadConfig(){
   config = res.ok ? res.raw : formConfig();
   els.provider.value = config.provider || 'openai';
   els.endpoint.value = config.endpoint || 'https://api.openai.com/v1/responses';
-  els.reasoningModel.value = config.reasoningModel || config.model || 'gpt-5.5';
-  els.fastModel.value = config.fastModel || 'gpt-5.4-mini';
+  els.reasoningModel.value = config.reasoningModel || config.model || 'gpt-5.1';
+  els.fastModel.value = config.fastModel || 'gpt-5.1';
   els.apiKey.value = config.apiKey || '';
   renderModelLine();
 }
@@ -98,7 +98,7 @@ function renderModelLine(extra=''){
 function applyProviderDefaults(){
   const d = {
     local:['http://localhost:11434/v1/chat/completions','llama3.1','llama3.1'],
-    openai:['https://api.openai.com/v1/responses','gpt-5.5','gpt-5.4-mini'],
+    openai:['https://api.openai.com/v1/responses','gpt-5.1','gpt-5.1'],
     gemini:['https://generativelanguage.googleapis.com/v1beta/models','gemini-2.5-flash','gemini-2.5-flash'],
     anthropic:['https://api.anthropic.com/v1/messages','claude-sonnet-4-20250514','claude-sonnet-4-20250514']
   }[els.provider.value];

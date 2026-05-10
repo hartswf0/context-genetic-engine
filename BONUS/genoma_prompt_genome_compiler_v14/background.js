@@ -2,7 +2,7 @@
 
 const PROVIDER_DEFAULTS = {
   local: { endpoint: 'http://localhost:11434/v1/chat/completions', reasoningModel: 'llama3.1', fastModel: 'llama3.1' },
-  openai: { endpoint: 'https://api.openai.com/v1/responses', reasoningModel: 'gpt-5.5', fastModel: 'gpt-5.4-mini' },
+  openai: { endpoint: 'https://api.openai.com/v1/responses', reasoningModel: 'gpt-5.1', fastModel: 'gpt-5.1' },
   gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta/models', reasoningModel: 'gemini-2.5-flash', fastModel: 'gemini-2.5-flash' },
   anthropic: { endpoint: 'https://api.anthropic.com/v1/messages', reasoningModel: 'claude-sonnet-4-20250514', fastModel: 'claude-sonnet-4-20250514' }
 };

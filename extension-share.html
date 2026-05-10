@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GENOMA // Mobile Share</title>
+  <style>
+    :root {
+      --black: #000;
+      --white: #fff;
+      --line: 3px;
+      --thin: 1px;
+      --max: 1180px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--white); color: var(--black); }
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: 0; }
+    a, button { color: inherit; font: inherit; }
+    a { text-decoration: none; }
+    .shell { width: min(100%, var(--max)); margin: 0 auto; padding: 18px; }
+    .hero { border-bottom: var(--line) solid var(--black); }
+    .hero-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .brand img { width: clamp(46px, 8vw, 80px); height: clamp(46px, 8vw, 80px); border: var(--line) solid var(--black); padding: 6px; }
+    h1 { margin: 0; font-size: clamp(30px, 7vw, 72px); line-height: .9; font-weight: 950; text-transform: uppercase; }
+    .rule { background: var(--black); color: var(--white); border: var(--line) solid var(--black); padding: 12px; font-size: 11px; line-height: 1.35; font-weight: 900; text-transform: uppercase; width: min(330px, 100%); }
+    .nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: var(--line) solid var(--black); }
+    .nav a { min-height: 50px; display: grid; place-items: center; padding: 10px; border-right: var(--thin) solid var(--black); font-size: 12px; font-weight: 950; text-transform: uppercase; text-align: center; }
+    .nav a:last-child { border-right: 0; }
+    .nav a:hover, .nav a:focus-visible { background: var(--black); color: var(--white); outline: none; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card { border: var(--line) solid var(--black); min-height: 132px; display: flex; flex-direction: column; }
+    .card b { display: block; border-bottom: var(--line) solid var(--black); padding: 12px; font-size: 13px; text-transform: uppercase; }
+    .card span { display: block; padding: 12px; font-size: 12px; line-height: 1.45; font-weight: 800; }
+    .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: var(--line) solid var(--black); border-bottom: 0; }
+    .controls button { border: 0; border-right: var(--thin) solid var(--black); background: var(--white); min-height: 48px; cursor: pointer; font-size: 11px; font-weight: 950; text-transform: uppercase; }
+    .controls button:last-child { border-right: 0; }
+    .controls button.active, .controls button:hover { background: var(--black); color: var(--white); }
+    .frame-wrap { border: var(--line) solid var(--black); height: min(72vh, 740px); min-height: 520px; }
+    iframe { width: 100%; height: 100%; border: 0; background: var(--white); }
+    .note { border: var(--line) solid var(--black); padding: 12px; margin-top: 16px; font-size: 12px; line-height: 1.45; font-weight: 850; }
+    @media (max-width: 760px) {
+      .hero-row { flex-direction: column; align-items: flex-start; }
+      .nav, .grid, .controls { grid-template-columns: 1fr; }
+      .nav a, .controls button { border-right: 0; border-bottom: var(--thin) solid var(--black); }
+      .nav a:last-child, .controls button:last-child { border-bottom: 0; }
+      .shell { padding: 14px; }
+      .frame-wrap { min-height: 560px; height: 68vh; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell hero-row">
+      <div class="brand">
+        <img src="chrome-genetics-extension-v3/icons/genoma-mark.svg" alt="">
+        <h1>Mobile Share</h1>
+      </div>
+      <div class="rule">Link-safe surface<br>Artifact and atlas previews<br>Extension runtime stays desktop</div>
+    </div>
+  </header>
+
+  <nav class="nav" aria-label="Share links">
+    <a href="index.html">Hub</a>
+    <a href="genoma-scope-atlas.html">Atlas</a>
+    <a href="video.html">Video</a>
+    <a href="GENOMA_MOBILE_SHARE.md">Mobile Notes</a>
+  </nav>
+
+  <main class="shell">
+    <section class="grid" aria-label="Runtime rules">
+      <div class="card">
+        <b>Panels</b>
+        <span>Panel links are previews outside the extension runtime. Real page capture needs desktop Chrome or Edge with Load Unpacked.</span>
+      </div>
+      <div class="card">
+        <b>Artifacts</b>
+        <span>Artifacts and the atlas work as normal linked pages, so they are the right mobile and iframe surfaces.</span>
+      </div>
+      <div class="card">
+        <b>Share Bundle</b>
+        <span>The future share object should export screenshot, source URL, operation genome, prompt genome, and selected artifact.</span>
+      </div>
+    </section>
+
+    <section aria-label="Embedded preview">
+      <div class="controls">
+        <button type="button" class="active" data-src="genoma-scope-atlas.html">Atlas</button>
+        <button type="button" data-src="BONUS/genoma_prompt_genome_compiler_v14/artifact/artifact.html">Artifact</button>
+        <button type="button" data-src="demo.html">Demo</button>
+        <button type="button" data-src="video.html">Video</button>
+      </div>
+      <div class="frame-wrap">
+        <iframe id="share-frame" src="genoma-scope-atlas.html" title="GENOMA mobile share preview"></iframe>
+      </div>
+    </section>
+
+    <section class="note">
+      Use this page when sending a phone-friendly link. Use the extension install docs when the operator needs live capture, active-tab mutation, provider calls, and the lineage vault.
+    </section>
+  </main>
+
+  <script>
+    const frame = document.getElementById('share-frame');
+    document.querySelectorAll('[data-src]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-src]').forEach((b) => b.classList.remove('active'));
+        button.classList.add('active');
+        frame.src = button.dataset.src;
+      });
+    });
+  </script>
+</body>
+</html>

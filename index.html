@@ -69,6 +69,23 @@
       align-items: end;
     }
 
+    .hero-lockup {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .hero-logo {
+      width: clamp(48px, 8vw, 82px);
+      height: clamp(48px, 8vw, 82px);
+      object-fit: contain;
+      border: var(--line) solid var(--black);
+      padding: 6px;
+      background: var(--white);
+      flex: 0 0 auto;
+    }
+
     h1 {
       margin: 0;
       font-size: clamp(30px, 7vw, 78px);
@@ -98,7 +115,7 @@
 
     .actions {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       border-bottom: var(--line) solid var(--black);
     }
 
@@ -256,6 +273,10 @@
       border-top: var(--line) solid var(--black);
     }
 
+    .links.docs {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
     .links a,
     .links button {
       min-height: 46px;
@@ -339,6 +360,10 @@
         margin-top: 14px;
       }
 
+      .hero-lockup {
+        align-items: flex-start;
+      }
+
       .actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -396,6 +421,10 @@
         grid-template-columns: 1fr;
       }
 
+      .links.docs {
+        grid-template-columns: 1fr;
+      }
+
       .links a,
       .links button {
         border-right: 0;
@@ -417,7 +446,8 @@
   <div class="page">
     <header class="hero">
       <div class="shell hero-grid">
-        <div>
+        <div class="hero-lockup">
+          <img class="hero-logo" src="chrome-genetics-extension-v3/icons/genoma-mark.svg" alt="">
           <h1>GENOMA</h1>
         </div>
         <div class="rule-box">
@@ -431,6 +461,8 @@
       <a href="g1.html">Open G1</a>
       <a href="video.html">Video</a>
       <a href="demo.html">Demo</a>
+      <a href="genoma-scope-atlas.html">Atlas</a>
+      <a href="extension-share.html">Share</a>
     </nav>
 
     <main class="main">
@@ -524,6 +556,34 @@
             </div>
           </article>
 
+          <article class="card primary">
+            <div class="card-top">
+              <div class="code">ATL</div>
+              <div class="title">
+                <h3>Scope Atlas</h3>
+                <span>prototype genome audit</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="genoma-scope-atlas.html">Open Atlas</a>
+              <button type="button" data-preview="genoma-scope-atlas.html" data-label="Scope Atlas // Prototype Genome Audit">Preview</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <div class="code">SHR</div>
+              <div class="title">
+                <h3>Mobile Share</h3>
+                <span>link-safe preview surface</span>
+              </div>
+            </div>
+            <div class="links">
+              <a href="extension-share.html">Open</a>
+              <button type="button" data-preview="extension-share.html" data-label="Mobile Share">Preview</button>
+            </div>
+          </article>
+
           <article class="card">
             <div class="card-top">
               <div class="code">H2</div>
@@ -607,6 +667,24 @@
               <div class="links">
                 <a href="chrome-genetics-extension-v3/panel/panel.html">Panel Preview</a>
                 <a href="chrome-genetics-extension-v3/README.md">Install Notes</a>
+              </div>
+            </article>
+
+            <article class="card primary">
+              <div class="card-top">
+                <div class="code">LAB</div>
+                <div class="title">
+                  <h3>GENOMA Lineage Lab</h3>
+                  <span>experimental v4 copy · freer surface</span>
+                  <div class="badge-row">
+                    <span class="badge">ATLAS</span><span class="badge">LINEAGE</span><span class="badge">SHARE</span><span class="badge">CINEMA</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Experimental branch of the side-panel extension. Use this for bolder lineage, screenshot, recording, and mobile-share experiments without destabilizing the current v3 tool.</div>
+              <div class="links">
+                <a href="chrome-genetics-extension-v4-experimental/panel/panel.html">Panel Preview</a>
+                <a href="chrome-genetics-extension-v4-experimental/README.md">Install Notes</a>
               </div>
             </article>
 
@@ -718,18 +796,21 @@
               </div>
             </article>
 
-            <article class="card">
+            <article class="card primary">
               <div class="card-top">
                 <div class="code">DOC</div>
                 <div class="title">
-                  <h3>Extension Program Theory</h3>
-                  <span>codon assessment</span>
+                  <h3>Documentation</h3>
+                  <span>install / mobile / providers / theory / encoder</span>
                 </div>
               </div>
-              <div class="card-body">A separate theory ledger for the extension family: purpose, codons, mobile stance, failure modes, and which build to use.</div>
-              <div class="links">
-                <a href="GENOMA_EXTENSION_PROGRAM_THEORY.md">Open Theory</a>
-                <a href="#extensions">Back Here</a>
+              <div class="card-body">The practical walkthroughs: load the extensions, understand mobile/link limitations, migrate Gemini-only harnesses to a provider router, and inspect the generated prototype genome atlas.</div>
+              <div class="links docs">
+                <a href="GENOMA_EXTENSION_INSTALL.md">Install</a>
+                <a href="GENOMA_MOBILE_SHARE.md">Mobile</a>
+                <a href="GENOMA_MODEL_ADAPTER_PLAN.md">Providers</a>
+                <a href="GENOMA_EXTENSION_PROGRAM_THEORY.md">Theory</a>
+                <a href="GENOMA_PROTOTYPE_ENCODER.md">Encoder</a>
               </div>
             </article>
           </div>
