@@ -91,10 +91,15 @@
 
     /* CODON ROW */
     .codon-row{border:1px solid var(--border);border-radius:4px;background:var(--bg);overflow:hidden;margin-bottom:6px;}
+    .codon-row.intron{opacity:0.48;border-style:dashed;}
     .codon-header{padding:5px 8px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
     .codon-locus{font-weight:900;font-size:10px;letter-spacing:0.1em;}
     .codon-weight{font-size:9px;color:var(--dim);font-family:var(--mono);}
     .codon-payload{padding:8px;font-size:11px;color:var(--primary);font-family:var(--mono);line-height:1.5;}
+    .codon-edit{width:100%;min-height:74px;background:#050505;border:0;border-top:1px solid var(--border);color:var(--primary);padding:8px;font-family:var(--mono);font-size:11px;line-height:1.5;resize:vertical;}
+    .codon-tools{display:flex;gap:4px;align-items:center;}
+    .codon-tools .pheno-btn{font-size:8px;padding:2px 6px;}
+    .weight-input{width:48px;background:#050505;border:1px solid var(--border);border-radius:3px;color:var(--dim);font-family:var(--mono);font-size:9px;padding:2px 4px;}
 
     /* BREED SLOTS */
     .breed-slot{border:2px dashed var(--border);border-radius:6px;padding:12px;text-align:center;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.15s;cursor:pointer;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;}
@@ -111,6 +116,8 @@
     .pheno-btn.active{background:var(--text);color:var(--bg);}
     #pheno-frame{width:100%;height:340px;border:none;background:#fff;}
     #pheno-text{padding:12px;font-family:var(--mono);font-size:11px;color:var(--primary);line-height:1.6;white-space:pre-wrap;overflow-y:auto;max-height:340px;}
+    #artifact-frame{width:100%;height:340px;border:none;background:#fff;}
+    #artifact-text,#compiled-prompt,#genome-chat-log{padding:12px;font-family:var(--mono);font-size:11px;color:var(--primary);line-height:1.6;white-space:pre-wrap;overflow-y:auto;max-height:340px;}
 
     /* LOADER */
     .loader{display:flex;gap:5px;align-items:center;justify-content:center;padding:20px;}
@@ -129,10 +136,12 @@
     /* EMPTY STATE */
     .empty-state{text-align:center;padding:32px 16px;color:var(--dim);border:1px dashed var(--border);border-radius:6px;margin:12px;}
     .empty-icon{font-size:28px;margin-bottom:8px;}
+    .empty-icon-img{width:34px;height:34px;object-fit:contain;margin-bottom:8px;}
     .empty-title{font-weight:900;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text);margin-bottom:6px;}
     .empty-desc{font-size:11px;line-height:1.6;}
 
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
     .hint{font-size:10px;color:var(--dim);line-height:1.5;}
     .tab-url-line{color:var(--dim);font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .overlay-active-badge{display:inline-block;background:var(--exon);color:#000;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;}
@@ -144,11 +153,7 @@
   <!-- HEADER -->
   <header class="header">
     <div class="header-brand">
-      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
-        <path d="M6,18 C6,8 14,4 26,4 L26,12 C18,12 14,14 14,18 Z" fill="#1cb0c6"/>
-        <rect x="6" y="22" width="16" height="7" rx="2" fill="#1cb0c6"/>
-        <path d="M23,14 L32,14 L32,26 C32,34 24,37 14,37 L14,29 C20,29 23,27 23,26 Z" fill="#f88c22"/>
-      </svg>
+      <img src="../icons/icon48.png" alt="" width="28" height="28">
       <div>
         <div class="header-title">DOM Genetics</div>
         <div class="header-sub">Extract · Breed · Express</div>
@@ -169,6 +174,10 @@
     <div class="tab active" id="tab-extract" data-tab="extract">
       Extract<span class="tab-count" id="count-extract">0</span>
     </div>
+    <div class="tab" id="tab-genome" data-tab="genome">
+      Genome<span class="tab-count" id="count-genome">0</span>
+    </div>
+    <div class="tab" id="tab-field" data-tab="field">Field</div>
     <div class="tab" id="tab-lineage" data-tab="lineage">
       Lineage<span class="tab-count" id="count-lineage">0</span>
     </div>
@@ -187,7 +196,10 @@
         <button class="btn primary" id="btn-extract">⬇ Extract Genome</button>
         <button class="btn" id="btn-overlay" disabled>◈ Annotate DOM</button>
       </div>
-      <button class="btn exon" id="btn-save" disabled style="width:100%;">✦ Save to Lineage Vault</button>
+      <div class="grid-2">
+        <button class="btn exon" id="btn-save" disabled>✦ Save to Lineage Vault</button>
+        <button class="btn accent" id="btn-load-genome" disabled>→ Edit Genotype</button>
+      </div>
     </div>
 
     <div class="section" id="extracted-codons-section" style="display:none;">
@@ -199,9 +211,68 @@
     </div>
 
     <div id="extract-empty" class="empty-state">
-      <div class="empty-icon">🧬</div>
+      <img class="empty-icon-img" src="../icons/icon48.png" alt="">
       <div class="empty-title">No Genome Extracted</div>
       <div class="empty-desc">Navigate to any website and click <b>Extract Genome</b> to sample its DNA — layout, color, typography, components, and interaction patterns.</div>
+    </div>
+  </div>
+
+  <!-- ══ GENOME ══ -->
+  <div class="panel" id="panel-genome">
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--primary)"></div>Active Genotype</div>
+      <div class="grid-3" style="margin-bottom:8px;">
+        <button class="btn accent btn-add-codon" data-type="RSN" data-payload="Construct theory before output.">+ RSN</button>
+        <button class="btn accent btn-add-codon" data-type="EVD" data-payload="Use only provided source material.">+ EVD</button>
+        <button class="btn accent btn-add-codon" data-type="OUT" data-payload="Return a structured, usable artifact.">+ OUT</button>
+      </div>
+      <div class="grid-3">
+        <button class="btn accent btn-add-codon" data-type="FIT" data-payload="Optimize for fidelity, clarity, and working affordance.">+ FIT</button>
+        <button class="btn accent btn-add-codon" data-type="FLR" data-payload="If blocked, state the missing condition and produce the closest safe fallback.">+ FLR</button>
+        <button class="btn accent btn-add-codon" data-type="CST" data-payload="">+ CST</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--exon)"></div>Codon Sequence</div>
+      <div id="genotype-container"></div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--purple)"></div>Chat With Genotype</div>
+      <textarea class="textarea" id="genome-chat-input" placeholder="Ask about the active genotype, request a mutation, or ask what it will express." style="margin-bottom:8px;"></textarea>
+      <button class="btn purple" id="btn-genome-chat" style="width:100%;margin-bottom:8px;">Ask Genotype</button>
+      <div id="genome-chat-log" class="pheno-wrap"></div>
+    </div>
+  </div>
+
+  <!-- ══ FIELD ══ -->
+  <div class="panel" id="panel-field">
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--exon)"></div>Target Task / Field</div>
+      <textarea class="textarea" id="field-task" placeholder="Paste the request, source material, or target task the active genotype should process." style="margin-bottom:8px;min-height:120px;"></textarea>
+      <div class="grid-2">
+        <button class="btn accent" id="btn-use-current-page">Use Extracted Page As Field</button>
+        <button class="btn exon" id="btn-express-field">Express Artifact</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--primary)"></div>Compiled Prompt</div>
+      <div id="compiled-prompt" class="pheno-wrap"></div>
+    </div>
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--yellow)"></div>Completion Artifact</div>
+      <div class="pheno-wrap">
+        <div class="pheno-toolbar">
+          <span class="pheno-toolbar-label">Artifact</span>
+          <div class="pheno-toolbar-actions">
+            <button class="pheno-btn active" id="btn-artifact-source">SOURCE</button>
+            <button class="pheno-btn" id="btn-artifact-render">RENDER</button>
+            <button class="pheno-btn" id="btn-artifact-copy">COPY</button>
+            <button class="pheno-btn" id="btn-artifact-dl">DL</button>
+          </div>
+        </div>
+        <div id="artifact-text">No artifact yet.</div>
+        <iframe id="artifact-frame" style="display:none;" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+      </div>
     </div>
   </div>
 
@@ -214,10 +285,10 @@
         <button class="btn accent" id="btn-goto-breed">→ Go to Breed</button>
       </div>
     </div>
+    <div class="loader" id="lineage-loader" style="display:none;">
+      <div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div>
+    </div>
     <div id="lineage-container" style="padding:0 12px 80px;">
-      <div class="loader" id="lineage-loader" style="display:none;">
-        <div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div>
-      </div>
     </div>
   </div>
 
@@ -263,7 +334,7 @@
         </div>
         <div id="pheno-text">
           <div class="empty-state" style="border:none;margin:0;">
-            <div class="empty-icon">🧪</div>
+            <img class="empty-icon-img" src="../icons/icon48.png" alt="">
             <div class="empty-desc">Select two genomes and run a cross to generate offspring.</div>
           </div>
         </div>
@@ -308,10 +379,10 @@
     <div class="section">
       <div class="section-title"><div class="sdot" style="background:var(--teal)"></div>Theory of the Program</div>
       <div class="hint" style="line-height:1.7;">
-        <b style="color:var(--primary)">EXTRACT:</b> Samples a live website's DOM into typed codons — Layout, Color, Typography, Spacing, Components, Interaction, Copy, Radius.<br><br>
-        <b style="color:var(--orange)">LINEAGE:</b> Persists extracted genomes as a local vault. Each genome retains its source URL and timestamp as provenance.<br><br>
-        <b style="color:var(--purple)">BREED:</b> Two parent genomes are crossed via Punnett logic. AI then expresses the offspring as a live HTML phenotype.<br><br>
-        <b style="color:var(--exon)">ANNOTATE:</b> Overlay mode injects a shadow-DOM island onto the live page — non-destructive.
+        <b style="color:var(--primary)">EXTRACT:</b> Samples a live website into typed codons.<br><br>
+        <b style="color:var(--exon)">GENOME:</b> Turns those codons into an editable prompt genotype with EXON / INTRON control.<br><br>
+        <b style="color:var(--yellow)">FIELD:</b> Applies the active genotype to a target task and renders the completion artifact.<br><br>
+        <b style="color:var(--orange)">LINEAGE / BREED:</b> Stores genomes, selects parents, crosses codons, and expresses offspring.
       </div>
     </div>
   </div>

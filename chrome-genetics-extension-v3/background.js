@@ -286,7 +286,16 @@ function extractDOMGenome(sourceUrl, sourceTitle) {
   };
 
   const push = (locus, payload, weight, selector = '') => {
-    genome.codons.push({ locus, payload, weight, selector, state: 'EXON' });
+    genome.codons.push({
+      id: Math.random().toString(36).substring(2, 10),
+      type: locus,
+      locus,
+      payload,
+      weight,
+      selector,
+      state: 'EXON',
+      active: true
+    });
   };
 
   // ── LOCUS: LAYOUT ── dominant structural grammar

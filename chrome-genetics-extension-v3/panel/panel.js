@@ -22,6 +22,7 @@ let lineage = {};               // All stored genomes from vault
 let parentA = null;             // <DOMGenome> selected as Parent A
 let parentB = null;             // <DOMGenome> selected as Parent B
 let lastPhenotype = '';         // Last <Phenotype> HTML output
+let lastFieldArtifact = '';     // Last direct genotype expression artifact
 let overlayActive = false;      // Whether the DOM annotation overlay is on
 let apiKey = '';                // Backwards-compatible shortcut for modelConfig.apiKey
 let modelConfig = {
@@ -77,6 +78,10 @@ function bindUI() {
   document.getElementById('btn-extract')?.addEventListener('click', extractCurrentPage);
   document.getElementById('btn-overlay')?.addEventListener('click', toggleOverlay);
   document.getElementById('btn-save')?.addEventListener('click', saveCurrentGenome);
+  document.getElementById('btn-load-genome')?.addEventListener('click', () => {
+    renderGenomeEditor();
+    switchTab('genome');
+  });
   document.getElementById('btn-refresh-lineage')?.addEventListener('click', loadLineage);
   document.getElementById('btn-goto-breed')?.addEventListener('click', () => switchTab('breed'));
   document.getElementById('slot-a')?.addEventListener('click', () => switchTab('lineage'));
@@ -93,9 +98,21 @@ function bindUI() {
   document.getElementById('btn-export-lineage')?.addEventListener('click', exportAllLineage);
   document.getElementById('btn-clear-lineage')?.addEventListener('click', clearAllLineage);
   document.getElementById('provider-select')?.addEventListener('change', updateProviderDefaults);
+  document.getElementById('btn-genome-chat')?.addEventListener('click', askActiveGenome);
+  document.getElementById('btn-use-current-page')?.addEventListener('click', useCurrentPageAsField);
+  document.getElementById('btn-express-field')?.addEventListener('click', expressFieldArtifact);
+  document.getElementById('btn-artifact-source')?.addEventListener('click', showArtifactSource);
+  document.getElementById('btn-artifact-render')?.addEventListener('click', showArtifactRender);
+  document.getElementById('btn-artifact-copy')?.addEventListener('click', copyFieldArtifact);
+  document.getElementById('btn-artifact-dl')?.addEventListener('click', downloadFieldArtifact);
+  document.querySelectorAll('.btn-add-codon').forEach(btn => {
+    btn.addEventListener('click', () => addCodon(btn.dataset.type, btn.dataset.payload || ''));
+  });
 
   document.getElementById('lineage-container')?.addEventListener('click', handleLineageClick);
   document.getElementById('offspring-container')?.addEventListener('click', handleOffspringClick);
+  document.getElementById('genotype-container')?.addEventListener('click', handleGenotypeClick);
+  document.getElementById('genotype-container')?.addEventListener('input', handleGenotypeInput);
 }
 
 // ─── STATUS HELPERS ───────────────────────────────────────────────────────────
@@ -114,6 +131,8 @@ function switchTab(name) {
   document.getElementById('tab-' + name)?.classList.add('active');
   document.getElementById('panel-' + name)?.classList.add('active');
   if (name === 'lineage') loadLineage();
+  if (name === 'genome') renderGenomeEditor();
+  if (name === 'field') renderCompiledPrompt();
   if (name === 'extract') refreshCurrentTabInfo();
 }
 
@@ -238,12 +257,15 @@ async function extractCurrentPage() {
       return;
     }
 
-    currentGenome = response.genome;
+    currentGenome = normalizeGenome(response.genome);
     renderExtractedCodons(currentGenome);
+    renderGenomeEditor();
     setBtn('btn-overlay', false);
     setBtn('btn-save', false);
+    setBtn('btn-load-genome', false);
     setStatus(`EXTRACTED ${currentGenome.codons.length} CODONS`, 'ok');
     document.getElementById('count-extract').textContent = currentGenome.codons.length;
+    updateGenomeCount();
     setTimeout(() => setStatus('READY'), 3000);
   });
 }
@@ -268,6 +290,166 @@ function renderExtractedCodons(genome) {
     `;
     container.appendChild(div);
   });
+}
+
+// ─── ACTIVE GENOTYPE ──────────────────────────────────────────────────────────
+function normalizeGenome(genome = {}) {
+  const codons = Array.isArray(genome.codons) ? genome.codons : [];
+  return {
+    id: genome.id || makeId(),
+    sourceUrl: genome.sourceUrl || 'manual://genotype',
+    sourceTitle: genome.sourceTitle || 'Manual Genotype',
+    timestamp: genome.timestamp || Date.now(),
+    synthetic: Boolean(genome.synthetic),
+    codons: codons.map(normalizeCodon)
+  };
+}
+
+function normalizeCodon(codon = {}) {
+  const type = codon.type || codon.locus || 'CST';
+  const state = codon.state || (codon.active === false ? 'INTRON' : 'EXON');
+  return {
+    id: codon.id || makeId(),
+    type,
+    locus: codon.locus || type,
+    payload: codon.payload || '',
+    weight: Number(codon.weight || 50),
+    selector: codon.selector || '',
+    state,
+    active: state !== 'INTRON'
+  };
+}
+
+function ensureActiveGenome() {
+  if (!currentGenome) {
+    currentGenome = normalizeGenome({
+      sourceTitle: 'Manual Genotype',
+      sourceUrl: 'manual://genotype',
+      codons: []
+    });
+  }
+  currentGenome = normalizeGenome(currentGenome);
+  return currentGenome;
+}
+
+function renderGenomeEditor() {
+  const container = document.getElementById('genotype-container');
+  if (!container) return;
+
+  const genome = ensureActiveGenome();
+  updateGenomeCount();
+  renderCompiledPrompt();
+
+  if (!genome.codons.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <img class="empty-icon-img" src="../icons/icon48.png" alt="">
+        <div class="empty-title">No Active Codons</div>
+        <div class="empty-desc">Extract a page or add manual codons to build the active genotype.</div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  genome.codons.forEach((codon, index) => {
+    const color = LOCUS_COLORS[codon.type] || LOCUS_COLORS[codon.locus] || '#f0f0f0';
+    const row = document.createElement('div');
+    row.className = `codon-row ${codon.state === 'INTRON' ? 'intron' : ''}`;
+    row.innerHTML = `
+      <div class="codon-header">
+        <span class="codon-locus" style="color:${color}">${escHtml(codon.type)}</span>
+        <div class="codon-tools">
+          <input class="weight-input js-codon-weight" data-index="${index}" type="number" min="0" max="100" value="${codon.weight}">
+          <button class="pheno-btn js-codon-up" data-index="${index}">UP</button>
+          <button class="pheno-btn js-codon-down" data-index="${index}">DN</button>
+          <button class="pheno-btn js-codon-toggle" data-index="${index}">${codon.state}</button>
+          <button class="pheno-btn js-codon-delete" data-index="${index}">DEL</button>
+        </div>
+      </div>
+      <textarea class="codon-edit js-codon-payload" data-index="${index}" placeholder="Codon payload...">${escHtml(codon.payload)}</textarea>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function handleGenotypeClick(event) {
+  const btn = event.target.closest('button');
+  if (!btn || !currentGenome) return;
+  const index = parseInt(btn.dataset.index, 10);
+  if (!Number.isInteger(index)) return;
+
+  if (btn.classList.contains('js-codon-toggle')) {
+    const codon = currentGenome.codons[index];
+    codon.state = codon.state === 'INTRON' ? 'EXON' : 'INTRON';
+    codon.active = codon.state !== 'INTRON';
+  }
+  if (btn.classList.contains('js-codon-delete')) {
+    currentGenome.codons.splice(index, 1);
+  }
+  if (btn.classList.contains('js-codon-up') && index > 0) {
+    [currentGenome.codons[index - 1], currentGenome.codons[index]] = [currentGenome.codons[index], currentGenome.codons[index - 1]];
+  }
+  if (btn.classList.contains('js-codon-down') && index < currentGenome.codons.length - 1) {
+    [currentGenome.codons[index + 1], currentGenome.codons[index]] = [currentGenome.codons[index], currentGenome.codons[index + 1]];
+  }
+
+  renderGenomeEditor();
+}
+
+function handleGenotypeInput(event) {
+  if (!currentGenome) return;
+  const index = parseInt(event.target.dataset.index, 10);
+  if (!Number.isInteger(index) || !currentGenome.codons[index]) return;
+
+  if (event.target.classList.contains('js-codon-payload')) {
+    currentGenome.codons[index].payload = event.target.value;
+  }
+  if (event.target.classList.contains('js-codon-weight')) {
+    currentGenome.codons[index].weight = Math.max(0, Math.min(100, Number(event.target.value || 0)));
+  }
+  renderCompiledPrompt();
+}
+
+function addCodon(type, payload) {
+  const genome = ensureActiveGenome();
+  genome.codons.push(normalizeCodon({ type, locus: type, payload, weight: 70, state: 'EXON' }));
+  renderGenomeEditor();
+  switchTab('genome');
+}
+
+function activeCodons() {
+  return (currentGenome?.codons || []).filter(c => c.state !== 'INTRON' && c.active !== false);
+}
+
+function compileActiveGenome() {
+  const genome = ensureActiveGenome();
+  const exons = activeCodons();
+  if (!exons.length) return 'You are a helpful assistant. No active EXON codons are loaded.';
+
+  return [
+    'You are the Context Genetics Engine.',
+    'Apply the active genotype as strict operational instructions.',
+    `SOURCE_TITLE: ${genome.sourceTitle || 'Unknown'}`,
+    `SOURCE_URL: ${genome.sourceUrl || 'Unknown'}`,
+    '',
+    'ACTIVE EXON CODONS:',
+    ...exons.map((c, index) => `${String(index + 1).padStart(2, '0')}. [${c.type}] W:${c.weight} ${c.payload}`),
+    '',
+    'INVARIANTS:',
+    '- Preserve source fidelity unless the field task explicitly asks for transformation.',
+    '- Treat codons as controls, not decorative labels.',
+    '- Produce a usable completion artifact, not a loose explanation.'
+  ].join('\n');
+}
+
+function renderCompiledPrompt() {
+  const el = document.getElementById('compiled-prompt');
+  if (el) el.textContent = compileActiveGenome();
+}
+
+function updateGenomeCount() {
+  const el = document.getElementById('count-genome');
+  if (el) el.textContent = String(currentGenome?.codons?.length || 0);
 }
 
 // ─── OVERLAY ──────────────────────────────────────────────────────────────────
@@ -300,11 +482,13 @@ function toggleOverlay() {
 // Theory: [store] operation — persists a <DOMGenome> into the vault
 function saveCurrentGenome() {
   if (!currentGenome) return;
+  currentGenome = normalizeGenome(currentGenome);
   chrome.runtime.sendMessage({ type: 'SAVE_GENOME', payload: { genome: currentGenome } }, (resp) => {
     if (resp?.ok) {
       setStatus('GENOME SAVED TO VAULT', 'ok');
       lineage[resp.key] = currentGenome;
       updateLineageCounts();
+      renderLineage();
       setTimeout(() => setStatus('READY'), 2000);
     }
   });
@@ -313,15 +497,15 @@ function saveCurrentGenome() {
 // ─── LINEAGE ──────────────────────────────────────────────────────────────────
 // Theory: Reads from <Lineage> vault and renders genome cards
 async function loadLineage() {
-  document.getElementById('lineage-loader').style.display = 'flex';
+  setLineageLoading(true);
 
   chrome.runtime.sendMessage({ type: 'LOAD_LINEAGE' }, (resp) => {
-    document.getElementById('lineage-loader').style.display = 'none';
+    setLineageLoading(false);
 
     if (!resp?.ok) return;
     lineage = {};
     for (const [k, v] of Object.entries(resp.lineage)) {
-      if (k.startsWith('genome:')) lineage[k] = v;
+      if (k.startsWith('genome:')) lineage[k] = normalizeGenome(v);
     }
     if (resp.lineage.api_key) {
       apiKey = resp.lineage.api_key;
@@ -337,6 +521,11 @@ async function loadLineage() {
   });
 }
 
+function setLineageLoading(show) {
+  const loader = document.getElementById('lineage-loader');
+  if (loader) loader.style.display = show ? 'flex' : 'none';
+}
+
 function renderLineage() {
   const container = document.getElementById('lineage-container');
   const keys = Object.keys(lineage).sort((a, b) => b.localeCompare(a));
@@ -344,7 +533,7 @@ function renderLineage() {
   if (keys.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">🗄</div>
+        <img class="empty-icon-img" src="../icons/icon48.png" alt="">
         <div class="empty-title">Vault Empty</div>
         <div class="empty-desc">Extract a genome and save it to build your lineage.</div>
       </div>`;
@@ -388,11 +577,14 @@ function createGenomeCard(genome, key) {
     </div>
     <div class="genome-codons">${codonTags}</div>
     <div class="genome-actions">
+      <button class="btn accent js-load-genome" data-key="${escHtml(key)}" style="flex:1; font-size:9px; padding:4px;">
+        LOAD
+      </button>
       <button class="btn js-parent-a" data-key="${escHtml(key)}" style="flex:1; font-size:9px; padding:4px; border-color:var(--teal); color:var(--teal);">
-        SET PARENT A
+        A
       </button>
       <button class="btn js-parent-b" data-key="${escHtml(key)}" style="flex:1; font-size:9px; padding:4px; border-color:var(--orange); color:var(--orange);">
-        SET PARENT B
+        B
       </button>
       <button class="btn danger js-delete-genome" data-key="${escHtml(key)}" style="font-size:9px; padding:4px 8px;">✕</button>
     </div>
@@ -406,6 +598,12 @@ function createGenomeCard(genome, key) {
 }
 
 function handleLineageClick(event) {
+  const loadButton = event.target.closest('.js-load-genome');
+  if (loadButton) {
+    loadGenomeFromLineage(loadButton.dataset.key);
+    return;
+  }
+
   const parentAButton = event.target.closest('.js-parent-a');
   if (parentAButton) {
     selectAsParent(parentAButton.dataset.key, 'A');
@@ -422,6 +620,16 @@ function handleLineageClick(event) {
   if (deleteButton) {
     deleteGenome(deleteButton.dataset.key);
   }
+}
+
+function loadGenomeFromLineage(key) {
+  const genome = lineage[key];
+  if (!genome) return;
+  currentGenome = normalizeGenome({ ...genome, codons: genome.codons.map(c => ({ ...c })) });
+  renderGenomeEditor();
+  switchTab('genome');
+  setStatus('GENOME LOADED FOR EDITING', 'ok');
+  setTimeout(() => setStatus('READY'), 2000);
 }
 
 function updateLineageCounts() {
@@ -713,6 +921,150 @@ Generate a beautiful, self-contained HTML page that is a novel UI inspired by th
   });
 }
 
+// ─── FIELD EXPRESSION ─────────────────────────────────────────────────────────
+function useCurrentPageAsField() {
+  const field = document.getElementById('field-task');
+  if (!field) return;
+
+  const genome = ensureActiveGenome();
+  const summary = [
+    `Source: ${genome.sourceTitle || 'Unknown'}`,
+    `URL: ${genome.sourceUrl || 'Unknown'}`,
+    '',
+    ...genome.codons.map(c => `[${c.type}] ${c.payload}`)
+  ].join('\n');
+
+  field.value = field.value.trim()
+    ? `${field.value.trim()}\n\n--- Extracted page genome ---\n${summary}`
+    : summary;
+}
+
+async function expressFieldArtifact() {
+  const activeConfig = getModelConfigFromForm();
+  modelConfig = activeConfig;
+  apiKey = activeConfig.apiKey;
+
+  const systemPrompt = compileActiveGenome();
+  const userTask = document.getElementById('field-task')?.value.trim() || 'Express the active genotype as a useful, self-contained artifact.';
+  renderCompiledPrompt();
+
+  if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
+    lastFieldArtifact = `${systemPrompt}\n\n[ FIELD TASK ]\n${userTask}\n\n[ MODEL DISABLED ] Configure an API key or select Local Llama.`;
+    renderFieldArtifact(lastFieldArtifact);
+    setStatus('API KEY REQUIRED — COMPILED PROMPT SHOWN', 'err');
+    setTimeout(() => setStatus('READY'), 3500);
+    return;
+  }
+
+  setStatus('EXPRESSING FIELD ARTIFACT...', 'work');
+  setBtn('btn-express-field', true);
+  chrome.runtime.sendMessage({
+    type: 'EXPRESS_PHENOTYPE',
+    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+  }, (resp) => {
+    setBtn('btn-express-field', false);
+    if (!resp || resp.error) {
+      lastFieldArtifact = `${systemPrompt}\n\n[ FIELD TASK ]\n${userTask}\n\n[ ERROR ] ${resp?.error || 'Unknown provider failure'}`;
+      renderFieldArtifact(lastFieldArtifact);
+      setStatus('FIELD EXPRESSION FAILED', 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+
+    lastFieldArtifact = resp.result || '';
+    renderFieldArtifact(lastFieldArtifact);
+    setStatus('FIELD ARTIFACT EXPRESSED', 'ok');
+    setTimeout(() => setStatus('READY'), 2500);
+  });
+}
+
+function renderFieldArtifact(text) {
+  const out = document.getElementById('artifact-text');
+  const frame = document.getElementById('artifact-frame');
+  if (!out || !frame) return;
+
+  out.textContent = text || 'No artifact.';
+  out.style.display = 'block';
+  frame.style.display = 'none';
+  document.getElementById('btn-artifact-source')?.classList.add('active');
+  document.getElementById('btn-artifact-render')?.classList.remove('active');
+}
+
+function showArtifactSource() {
+  if (!lastFieldArtifact) return;
+  document.getElementById('artifact-frame').style.display = 'none';
+  document.getElementById('artifact-text').style.display = 'block';
+  document.getElementById('btn-artifact-source').classList.add('active');
+  document.getElementById('btn-artifact-render').classList.remove('active');
+}
+
+function showArtifactRender() {
+  if (!lastFieldArtifact) return;
+  const frame = document.getElementById('artifact-frame');
+  frame.srcdoc = extractHTML(lastFieldArtifact);
+  document.getElementById('artifact-text').style.display = 'none';
+  frame.style.display = 'block';
+  document.getElementById('btn-artifact-render').classList.add('active');
+  document.getElementById('btn-artifact-source').classList.remove('active');
+}
+
+function copyFieldArtifact() {
+  if (!lastFieldArtifact) return;
+  navigator.clipboard.writeText(extractHTML(lastFieldArtifact)).then(() => {
+    setStatus('FIELD ARTIFACT COPIED', 'ok');
+    setTimeout(() => setStatus('READY'), 2000);
+  });
+}
+
+function downloadFieldArtifact() {
+  if (!lastFieldArtifact) return;
+  const html = extractHTML(lastFieldArtifact);
+  const blob = new Blob([html], { type: html.includes('<') ? 'text/html' : 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `field_artifact_${Date.now()}.${html.includes('<') ? 'html' : 'txt'}`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('FIELD ARTIFACT DOWNLOADED', 'ok');
+  setTimeout(() => setStatus('READY'), 2000);
+}
+
+async function askActiveGenome() {
+  const input = document.getElementById('genome-chat-input');
+  const log = document.getElementById('genome-chat-log');
+  if (!input || !log) return;
+
+  const question = input.value.trim();
+  if (!question) return;
+  const systemPrompt = 'You are helping inspect and evolve an active prompt genotype. Be concrete. Reference exact codons when useful.';
+  const userTask = `${compileActiveGenome()}\n\n[ USER QUESTION ]\n${question}`;
+  const activeConfig = getModelConfigFromForm();
+
+  if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
+    log.textContent = `${userTask}\n\n[ MODEL DISABLED ] Configure an API key or select Local Llama.`;
+    setStatus('API KEY REQUIRED — GENOTYPE PROMPT SHOWN', 'err');
+    setTimeout(() => setStatus('READY'), 3500);
+    return;
+  }
+
+  setStatus('QUERYING GENOTYPE...', 'work');
+  chrome.runtime.sendMessage({
+    type: 'EXPRESS_PHENOTYPE',
+    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+  }, (resp) => {
+    if (!resp || resp.error) {
+      log.textContent = `[ ERROR ] ${resp?.error || 'Unknown provider failure'}`;
+      setStatus('GENOTYPE QUERY FAILED', 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+    log.textContent = resp.result || '';
+    setStatus('GENOTYPE RESPONSE READY', 'ok');
+    setTimeout(() => setStatus('READY'), 2200);
+  });
+}
+
 // ─── PHENOTYPE RENDERING ──────────────────────────────────────────────────────
 function extractHTML(text) {
   const match = text.match(/```(?:html|HTML)?\n([\s\S]*?)```/i);
@@ -781,7 +1133,7 @@ function downloadPhenotype() {
 function savePhenotypeAsGenome() {
   if (!lastPhenotype || !parentA || !parentB) return;
 
-  const syntheticGenome = {
+  const syntheticGenome = normalizeGenome({
     id: Math.random().toString(36).substring(2, 10),
     sourceUrl: `synthetic://bred/${Date.now()}`,
     sourceTitle: `${parentA.sourceTitle || 'A'} × ${parentB.sourceTitle || 'B'}`,
@@ -793,12 +1145,13 @@ function savePhenotypeAsGenome() {
       ...(parentA.codons || []).map(c => ({ ...c })),
       ...(parentB.codons || []).map(c => ({ ...c }))
     ].filter((c, i, arr) => arr.findIndex(x => x.locus === c.locus) === i) // dedupe by locus
-  };
+  });
 
   chrome.runtime.sendMessage({ type: 'SAVE_GENOME', payload: { genome: syntheticGenome } }, (resp) => {
     if (resp?.ok) {
       lineage[resp.key] = syntheticGenome;
       updateLineageCounts();
+      renderLineage();
       setStatus('SYNTHETIC GENOME STORED IN VAULT', 'ok');
       setTimeout(() => setStatus('READY'), 2500);
     }
@@ -841,6 +1194,10 @@ function clearAllLineage() {
 function setBtn(id, disabled) {
   const el = document.getElementById(id);
   if (el) el.disabled = disabled;
+}
+
+function makeId() {
+  return Math.random().toString(36).substring(2, 10);
 }
 
 function escHtml(str) {
