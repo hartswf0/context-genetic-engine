@@ -50,7 +50,7 @@ const PROMPT_LOCI = ['RSN', 'EVD', 'OUT', 'FLR', 'FIT', 'CST', 'CMT'];
 
 const GENOTYPE_TRANSCRIPTION_PROMPT = `TRANSCRIBE GENOTYPE.
 Read the Environmental Medium as source material, not as the final genotype.
-Extract operational prompt codons mapped only to these loci:
+Extract compact, token-dense operational prompt codons mapped only to these loci:
 1. RSN: Reasoning Order
 2. EVD: Evidence Policy
 3. OUT: Output Form
@@ -59,6 +59,11 @@ Extract operational prompt codons mapped only to these loci:
 6. CST: Custom explicit trait/constraint
 
 DOM observations such as layout, color, typography, components, interaction, copy, and radius are evidence. Convert them into useful prompt controls.
+Rules:
+- Payloads must be dense imperative instructions, not summaries.
+- Preserve concrete evidence values when useful: colors, fonts, spacing, component counts, copy signals.
+- Avoid vague words such as beautiful, nice, improve, modern unless tied to an observable constraint.
+- Weight must be 0-100.
 Output JSON only: an array of objects with { "type": "RSN|EVD|OUT|FLR|FIT|CST", "payload": "specific instruction text", "state": "EXON", "weight": integer }.`;
 
 const PROVIDER_DEFAULTS = {
@@ -148,6 +153,31 @@ function setStatus(text, state = 'idle') {
   dot.className = 'status-dot ' + { idle: '', ok: 'ok', err: 'err', work: 'work' }[state];
   label.className = 'status-text ' + { idle: '', ok: 'ok', err: 'err', work: 'work' }[state];
   label.textContent = text;
+  if (text && text !== 'READY') appendRunLog(text, state);
+}
+
+function appendRunLog(text, state = 'idle') {
+  const log = document.getElementById('run-log');
+  if (!log) return;
+  const row = document.createElement('div');
+  row.className = `diag-entry ${state || 'idle'}`;
+  const time = document.createElement('span');
+  time.className = 'diag-time';
+  time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const msg = document.createElement('span');
+  msg.textContent = text;
+  row.append(time, msg);
+  log.prepend(row);
+  while (log.children.length > 12) log.lastElementChild?.remove();
+}
+
+function setPipelineStep(id, state, label) {
+  const step = document.getElementById(id);
+  const stateEl = document.getElementById(`${id}-state`);
+  if (!step || !stateEl) return;
+  step.classList.remove('ready', 'work');
+  if (state === 'ready' || state === 'work') step.classList.add(state);
+  stateEl.textContent = label || state || 'waiting';
 }
 
 // ─── TAB ROUTING ─────────────────────────────────────────────────────────────
@@ -268,7 +298,10 @@ function toggleApiReveal() {
 // ─── EXTRACT ──────────────────────────────────────────────────────────────────
 // Theory: [extract] operation — calls background to run extractDOMGenome in tab context
 async function extractCurrentPage() {
-  setStatus('EXTRACTING GENOME...', 'work');
+  setStatus('SCANNING DOM ALLELES...', 'work');
+  setPipelineStep('pipe-dom', 'work', 'scanning');
+  setPipelineStep('pipe-local', '', 'waiting');
+  setPipelineStep('pipe-ai', '', 'optional');
   setBtn('btn-extract', true);
   document.getElementById('extract-empty').style.display = 'none';
 
@@ -276,7 +309,8 @@ async function extractCurrentPage() {
     setBtn('btn-extract', false);
 
     if (!response || response.error) {
-      setStatus('EXTRACTION FAILED — CSP BLOCK?', 'err');
+      setStatus(`DOM SCAN FAILED: ${response?.error || 'CSP OR TAB BLOCKED'}`, 'err');
+      setPipelineStep('pipe-dom', '', 'failed');
       document.getElementById('extract-empty').style.display = 'block';
       document.getElementById('extract-empty').querySelector('.empty-desc').textContent =
         response?.error || 'Content Security Policy blocked extraction on this page.';
@@ -294,9 +328,12 @@ async function extractCurrentPage() {
     setBtn('btn-ai-encode', false);
     setBtn('btn-adopt-panel', false);
     setBtn('btn-apply-page-genetics', false);
-    setStatus(`EXTRACTED ${currentGenome.codons.length} CODONS`, 'ok');
-    document.getElementById('count-extract').textContent = currentGenome.codons.length;
+    setPipelineStep('pipe-dom', 'ready', `${rawGenome.codons.length} alleles`);
+    setPipelineStep('pipe-local', 'ready', `${currentGenome.codons.length} codons`);
+    setStatus(`SCANNED ${rawGenome.codons.length} DOM ALLELES; LOCAL PROMPT GENOME READY`, 'ok');
+    document.getElementById('count-extract').textContent = rawGenome.codons.length;
     updateGenomeCount();
+    refreshOverlayIfActive();
     setTimeout(() => setStatus('READY'), 3000);
   });
 }
@@ -350,12 +387,12 @@ function transcribeDomGenome(rawGenome) {
     timestamp: Date.now(),
     rawCodons: rawGenome.codons,
     codons: [
-      { type: 'RSN', weight: 90, payload: `Construct a theory of the program before producing output. Treat "${sourceTitle}" as environmental evidence and distinguish observations from instructions.` },
-      { type: 'EVD', weight: 88, payload: `Use extracted page evidence as source material. Evidence observed:\n${truncateText(observed, 1200)}` },
-      { type: 'OUT', weight: 82, payload: 'Return a functional, inspectable artifact with explicit structure, states, controls, and source/render modes when useful.' },
-      { type: 'FLR', weight: 76, payload: 'If evidence is incomplete or a page is restricted, state the missing condition and produce the closest safe compiled prompt or artifact.' },
-      { type: 'FIT', weight: 84, payload: `Optimize for source fidelity, usable interface behavior, and clear mapping from page evidence into operational prompt controls. Components: ${byType.COMPONENT || 'not observed'}` },
-      { type: 'CST', weight: 70, payload: `Preserve useful structural signals from the page without mistaking raw DOM traits for the final genotype. Style evidence: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ')}` }
+      { type: 'RSN', weight: 92, payload: `Reason from "${sourceTitle}" in order: layout skeleton -> component affordances -> interaction behavior -> copy intent -> visual constraints; keep observed DOM facts separate from transformation choices.` },
+      { type: 'EVD', weight: 90, payload: `Use the scanned DOM alleles as the evidence pack; cite concrete values before changing them. Evidence:\n${truncateText(observed, 1800)}` },
+      { type: 'OUT', weight: 86, payload: 'Return an inspectable artifact with source/render modes, explicit controls, empty/error states, and enough structure that a user can test the transformation immediately.' },
+      { type: 'FLR', weight: 78, payload: 'When extraction, provider, CSP, or rendering fails, name the blocked layer, preserve the last valid genome, and output the closest usable prompt/artifact instead of silently failing.' },
+      { type: 'FIT', weight: 88, payload: `Optimize for faithful transduction from page evidence into usable UI controls; preserve dominant components and interaction signals. Component evidence: ${byType.COMPONENT || 'not observed'}. Interaction evidence: ${byType.INTERACTION || 'not observed'}.` },
+      { type: 'CST', weight: 74, payload: `Style constraints are evidence, not destiny: map color/type/radius into deliberate choices. Style evidence: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ')}` }
     ].map(c => ({ ...c, state: 'EXON' }))
   });
 }
@@ -368,7 +405,7 @@ function normalizeCodon(codon = {}) {
     type,
     locus: codon.locus || type,
     payload: codon.payload || '',
-    weight: Number(codon.weight || 50),
+    weight: normalizeWeight(codon.weight),
     selector: codon.selector || '',
     state,
     active: state !== 'INTRON'
@@ -425,6 +462,7 @@ function renderGenomeEditor() {
       <div class="codon-chat-row">
         <input class="codon-chat-input js-codon-chat-input" data-index="${index}" placeholder="Ask or mutate this codon...">
         <button class="pheno-btn js-codon-chat" data-index="${index}">ASK</button>
+        <button class="pheno-btn js-codon-mutate" data-index="${index}">MUTATE</button>
       </div>
     `;
     container.appendChild(row);
@@ -453,6 +491,10 @@ function handleGenotypeClick(event) {
   }
   if (btn.classList.contains('js-codon-chat')) {
     askCodon(index);
+    return;
+  }
+  if (btn.classList.contains('js-codon-mutate')) {
+    mutateCodon(index);
     return;
   }
 
@@ -524,12 +566,13 @@ async function aiEncodeCurrentContext() {
   if (!currentGenome) return;
   const activeConfig = getModelConfigFromForm();
   if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
-    setStatus('API KEY REQUIRED — USING LOCAL TRANSCRIPTION', 'err');
+    setPipelineStep('pipe-ai', '', 'needs key');
+    setStatus('LLM ENCODE BLOCKED: API KEY REQUIRED; LOCAL TRANSCRIPT STILL ACTIVE', 'err');
     setTimeout(() => setStatus('READY'), 3000);
     return;
   }
 
-  const rawEvidence = currentGenome.rawCodons?.length ? currentGenome.rawCodons : currentGenome.codons;
+  const rawEvidence = rawPageGenome?.codons?.length ? rawPageGenome.codons : (currentGenome.rawCodons?.length ? currentGenome.rawCodons : currentGenome.codons);
   const prompt = [
     `SOURCE_TITLE: ${currentGenome.sourceTitle}`,
     `SOURCE_URL: ${currentGenome.sourceUrl}`,
@@ -538,27 +581,31 @@ async function aiEncodeCurrentContext() {
     rawEvidence.map(c => `[${c.type}] ${c.payload}`).join('\n')
   ].join('\n');
 
-  setStatus('AI ENCODING PROMPT GENOTYPE...', 'work');
+  setPipelineStep('pipe-ai', 'work', 'encoding');
+  setStatus('LLM ENCODING PROMPT GENOME...', 'work');
   chrome.runtime.sendMessage({
     type: 'EXPRESS_PHENOTYPE',
     payload: { modelConfig: activeConfig, systemPrompt: GENOTYPE_TRANSCRIPTION_PROMPT, userTask: prompt }
   }, (resp) => {
     if (!resp || resp.error) {
-      setStatus('AI ENCODE FAILED — KEPT LOCAL TRANSCRIPTION', 'err');
+      setPipelineStep('pipe-ai', '', 'failed');
+      setStatus(`LLM ENCODE FAILED: ${resp?.error || 'UNKNOWN'}; LOCAL TRANSCRIPT KEPT`, 'err');
       setTimeout(() => setStatus('READY'), 4000);
       return;
     }
 
     const parsed = parseCodonArray(resp.result);
     if (!parsed.length) {
-      setStatus('AI ENCODE RETURNED NO CODONS', 'err');
+      setPipelineStep('pipe-ai', '', 'empty');
+      setStatus('LLM ENCODE RETURNED NO CODONS; LOCAL TRANSCRIPT KEPT', 'err');
       setTimeout(() => setStatus('READY'), 4000);
       return;
     }
 
     currentGenome.codons = parsed.map(normalizeCodon);
     renderGenomeEditor();
-    setStatus('PROMPT GENOTYPE ENCODED', 'ok');
+    setPipelineStep('pipe-ai', 'ready', `${currentGenome.codons.length} codons`);
+    setStatus('LLM PROMPT GENOME ENCODED', 'ok');
     setTimeout(() => setStatus('READY'), 2500);
   });
 }
@@ -609,6 +656,17 @@ function toggleOverlay() {
   });
 }
 
+function refreshOverlayIfActive() {
+  const overlayGenome = rawPageGenome || currentGenome;
+  if (!overlayActive || !overlayGenome) return;
+  chrome.runtime.sendMessage({
+    type: 'TOGGLE_OVERLAY',
+    payload: { genome: overlayGenome, show: true }
+  }, (resp) => {
+    if (resp?.error) setStatus(`ANNOTATION REFRESH FAILED: ${resp.error}`, 'err');
+  });
+}
+
 // ─── PAGE / PANEL EXPERIMENTS ────────────────────────────────────────────────
 function adoptPageGeneticsIntoPanel() {
   const colors = extractRgbColors(getRawCodonPayload('COLOR'));
@@ -645,6 +703,7 @@ function applyPageGeneticsToActiveTab() {
       return;
     }
     setStatus('LIVE PAGE GENETICS APPLIED', 'ok');
+    refreshOverlayIfActive();
     setTimeout(() => setStatus('READY'), 2600);
   });
 }
@@ -1321,7 +1380,10 @@ async function askCodon(index) {
   const log = document.getElementById('genome-chat-log');
   if (!codon || !input || !log) return;
   const question = input.value.trim() || 'Explain what this codon controls and suggest one precise mutation.';
-  const systemPrompt = 'You are inspecting one prompt codon inside a larger active genotype. Answer concretely. If asked for a mutation, output the replacement payload clearly.';
+  const wantsMutation = shouldApplyMutation(question);
+  const systemPrompt = wantsMutation
+    ? 'You are mutating one prompt codon. Output JSON only: {"payload":"replacement codon payload","weight":0-100}. The payload must be dense, imperative, and directly replace the old payload.'
+    : 'You are inspecting one prompt codon inside a larger active genotype. Answer concretely. Reference exact codons when useful.';
   const userTask = [
     'ACTIVE CODON:',
     `[${codon.type}] state=${codon.state} weight=${codon.weight}`,
@@ -1336,6 +1398,14 @@ async function askCodon(index) {
   const activeConfig = getModelConfigFromForm();
 
   if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
+    if (wantsMutation) {
+      const replacement = localCodonMutation(codon, question);
+      applyCodonMutation(index, replacement.payload, replacement.weight);
+      log.textContent = `[ ${codon.type} LOCAL MUTATION ]\n${replacement.payload}`;
+      setStatus('LOCAL CODON MUTATION APPLIED; NO API KEY USED', 'ok');
+      setTimeout(() => setStatus('READY'), 2500);
+      return;
+    }
     log.textContent = `${userTask}\n\n[ MODEL DISABLED ] Configure an API key or select Local Llama.`;
     setStatus('API KEY REQUIRED — CODON PROMPT SHOWN', 'err');
     setTimeout(() => setStatus('READY'), 3500);
@@ -1353,10 +1423,87 @@ async function askCodon(index) {
       setTimeout(() => setStatus('READY'), 4000);
       return;
     }
-    log.textContent = `[ ${codon.type} ]\n${resp.result || ''}`;
-    setStatus('CODON RESPONSE READY', 'ok');
+    const result = resp.result || '';
+    const mutation = extractMutationPayload(result, codon.type);
+    if (wantsMutation && mutation?.payload) {
+      applyCodonMutation(index, mutation.payload, mutation.weight);
+      log.textContent = `[ ${codon.type} MUTATED ]\n${mutation.payload}`;
+      setStatus('CODON MUTATION APPLIED TO ACTIVE GENOME', 'ok');
+    } else {
+      log.textContent = `[ ${codon.type} ]\n${result}`;
+      setStatus('CODON RESPONSE READY', 'ok');
+    }
     setTimeout(() => setStatus('READY'), 2200);
   });
+}
+
+async function mutateCodon(index) {
+  const codon = currentGenome?.codons?.[index];
+  const input = document.querySelector(`.js-codon-chat-input[data-index="${index}"]`);
+  if (!codon || !input) return;
+  if (!input.value.trim()) input.value = 'Make this codon more token dense, operational, and testable.';
+  askCodon(index);
+}
+
+function shouldApplyMutation(text) {
+  return /\b(mutate|rewrite|replace|update|change|make|densify|dense|crisp|sharpen|bauhaus|minimal|stronger)\b/i.test(String(text || ''));
+}
+
+function extractMutationPayload(text, type) {
+  const raw = String(text || '').trim();
+  try {
+    const parsed = JSON.parse(extractJSON(raw));
+    if (parsed?.payload) return { payload: String(parsed.payload).trim(), weight: parsed.weight };
+  } catch (e) {}
+
+  const marker = raw.match(/(?:MUTATION|REPLACEMENT)\s+PAYLOAD\s*:?\s*(?:\[[A-Z]+\]\s*)?([\s\S]+)/i);
+  if (marker?.[1]) return { payload: cleanupMutationPayload(marker[1], type) };
+
+  const bracket = raw.match(new RegExp(`\\[${type}\\]\\s*([\\s\\S]+)`, 'i'));
+  if (bracket?.[1]) return { payload: cleanupMutationPayload(bracket[1], type) };
+  return null;
+}
+
+function cleanupMutationPayload(text, type) {
+  return String(text || '')
+    .replace(new RegExp(`^\\[${type}\\]\\s*`, 'i'), '')
+    .replace(/^state=.*$/gim, '')
+    .trim();
+}
+
+function applyCodonMutation(index, payload, weight) {
+  if (!currentGenome?.codons?.[index] || !payload) return;
+  currentGenome.codons[index].payload = payload;
+  if (weight !== undefined) currentGenome.codons[index].weight = normalizeWeight(weight);
+  renderGenomeEditor();
+  renderCompiledPrompt();
+}
+
+function localCodonMutation(codon, directive) {
+  const payload = String(codon.payload || '').trim();
+  const request = String(directive || '').toLowerCase();
+  const prefixes = {
+    RSN: 'Order reasoning as explicit operations; separate evidence, inference, decision, and output.',
+    EVD: 'Use concrete evidence only; preserve measured values, source labels, and uncertainty.',
+    OUT: 'Return a directly inspectable artifact with named sections, controls, and render/source states.',
+    FIT: 'Optimize for high signal density, fast inspection, low ambiguity, and testable interaction outcomes.',
+    FLR: 'Expose blocked layer, exact error, preserved fallback state, and next recoverable action.',
+    CST: 'Apply the custom trait as an operational constraint with visible, testable UI consequences.'
+  };
+  const styleClause = request.includes('bauhaus')
+    ? ' Favor Bauhaus discipline: grid geometry, sharp planes, primary accents, asymmetry, minimal ornament.'
+    : '';
+  const densityClause = /\bdense|densify|token\b/.test(request)
+    ? ' Remove filler; compress into imperative clauses; keep concrete values.'
+    : '';
+  const crispClause = /\bcrisp|sharp|sharpen|minimal\b/.test(request)
+    ? ' Prefer crisp hierarchy, hard edges, clear contrast, and unambiguous affordances.'
+    : '';
+
+  return {
+    payload: `${prefixes[codon.type] || 'Apply this codon as a specific operational constraint.'} ${payload}${densityClause}${crispClause}${styleClause}`.replace(/\s+/g, ' ').trim(),
+    weight: Math.max(normalizeWeight(codon.weight), 82)
+  };
 }
 
 // ─── IMAGE EVIDENCE ──────────────────────────────────────────────────────────
@@ -1573,6 +1720,14 @@ function humanBytes(bytes) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function normalizeWeight(weight) {
+  const value = Number(weight);
+  if (!Number.isFinite(value)) return 50;
+  if (value > 0 && value <= 5) return Math.round(value * 20);
+  if (value > 5 && value <= 10) return Math.round(value * 10);
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function makeId() {

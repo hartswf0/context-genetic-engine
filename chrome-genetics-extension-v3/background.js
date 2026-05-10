@@ -425,10 +425,12 @@ function toggleDOMOverlay(genome, show) {
   const existing = document.getElementById(OVERLAY_ID);
 
   if (!show) {
+    if (window.__domGeneticsOverlayCleanup) window.__domGeneticsOverlayCleanup();
     if (existing) existing.remove();
     return;
   }
 
+  if (window.__domGeneticsOverlayCleanup) window.__domGeneticsOverlayCleanup();
   if (existing) existing.remove();
 
   const host = document.createElement('div');
@@ -444,21 +446,16 @@ function toggleDOMOverlay(genome, show) {
     COPY: '#22d3ee', RADIUS: '#fb923c'
   };
 
-  const selectorMap = {
-    LAYOUT: 'body, main, [class*="container"], [class*="wrapper"]',
-    COMPONENT: 'nav, button, [class*="card"], [class*="btn"], input, header, footer',
-    COPY: 'h1, h2, h3',
-    TYPOGRAPHY: 'p, li, a',
-    INTERACTION: '[class*="anim"], [class*="fade"]',
-    RADIUS: 'button, [class*="card"]',
-    SPACING: 'section, main > *, article',
-    COLOR: 'header, footer, nav'
-  };
-
-  let css = `
+  const css = `
     * { box-sizing: border-box; }
+    .legend {
+      position: fixed; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 4px;
+      max-width: min(360px, calc(100vw - 20px)); padding: 6px; background: #000; border: 1px solid #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; z-index: 3;
+    }
+    .legend span { font-size: 9px; font-weight: 900; letter-spacing: 0.08em; padding: 2px 5px; color: #000; }
     .locus-badge {
-      position: absolute; font-family: monospace; font-size: 10px; font-weight: 900;
+      position: absolute; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 900;
       padding: 2px 6px; border-radius: 3px; pointer-events: none; z-index: 1;
       letter-spacing: 0.1em; opacity: 0.9; line-height: 1;
     }
@@ -476,14 +473,50 @@ function toggleDOMOverlay(genome, show) {
   canvas.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none;';
   shadow.appendChild(canvas);
 
-  const usedLoci = new Set(genome.codons.map(c => c.locus));
+  const usedLoci = [...new Set((genome.codons || []).map(c => c.locus || c.type))]
+    .filter(Boolean)
+    .sort((a, b) => ['LAYOUT', 'COLOR', 'TYPOGRAPHY', 'SPACING', 'COMPONENT', 'INTERACTION', 'COPY', 'RADIUS'].indexOf(a) - ['LAYOUT', 'COLOR', 'TYPOGRAPHY', 'SPACING', 'COMPONENT', 'INTERACTION', 'COPY', 'RADIUS'].indexOf(b));
 
+  const legend = document.createElement('div');
+  legend.className = 'legend';
   usedLoci.forEach(locus => {
-    const color = LOCUS_COLORS[locus] || '#fff';
-    const selector = selectorMap[locus];
-    if (!selector) return;
-    try {
-      const targets = [...document.querySelectorAll(selector)].slice(0, 8);
+    const tag = document.createElement('span');
+    tag.style.background = LOCUS_COLORS[locus] || '#fff';
+    tag.textContent = locus;
+    legend.appendChild(tag);
+  });
+  shadow.appendChild(legend);
+
+  const visible = el => {
+    if (!el || el === host) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 4 && rect.height > 4 && rect.bottom >= 0 && rect.right >= 0 && rect.top <= innerHeight && rect.left <= innerWidth;
+  };
+
+  const query = selector => {
+    try { return [...document.querySelectorAll(selector)].filter(visible); }
+    catch (e) { return []; }
+  };
+
+  const targetsFor = locus => {
+    const map = {
+      LAYOUT: () => [document.querySelector('main'), document.querySelector('[class*="container"]'), document.body].filter(visible).slice(0, 2),
+      COLOR: () => query('header, nav, button, [role="button"], a[href]').slice(0, 5),
+      TYPOGRAPHY: () => query('h1, h2, h3, p').filter(el => (el.innerText || '').trim()).slice(0, 4),
+      SPACING: () => query('section, main > *, article > *, [class*="section"]').slice(0, 5),
+      COMPONENT: () => query('nav, form, button, input, select, textarea, [role="button"], [class*="card"], [class*="panel"]').slice(0, 8),
+      INTERACTION: () => query('[class*="anim"], [class*="fade"], [class*="slide"], [class*="transition"], button, a[href]').slice(0, 5),
+      COPY: () => query('h1, h2, h3, button, a[href]').filter(el => (el.innerText || '').trim()).slice(0, 5),
+      RADIUS: () => query('button, input, select, textarea, [class*="card"], img').slice(0, 5)
+    };
+    return map[locus] ? map[locus]() : [];
+  };
+
+  const render = () => {
+    canvas.textContent = '';
+    usedLoci.forEach(locus => {
+      const color = LOCUS_COLORS[locus] || '#fff';
+      const targets = targetsFor(locus);
       targets.forEach(el => {
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
@@ -491,8 +524,8 @@ function toggleDOMOverlay(genome, show) {
         const outline = document.createElement('div');
         outline.className = 'locus-outline';
         outline.style.cssText = `
-          left: ${rect.left + window.scrollX}px;
-          top: ${rect.top + window.scrollY}px;
+          left: ${Math.max(0, rect.left)}px;
+          top: ${Math.max(0, rect.top)}px;
           width: ${rect.width}px;
           height: ${rect.height}px;
           border-color: ${color};
@@ -502,16 +535,31 @@ function toggleDOMOverlay(genome, show) {
         const badge = document.createElement('div');
         badge.className = 'locus-badge';
         badge.style.cssText = `
-          left: ${rect.left + window.scrollX + 4}px;
-          top: ${rect.top + window.scrollY + 4}px;
+          left: ${Math.max(0, rect.left + 4)}px;
+          top: ${Math.max(0, rect.top + 4)}px;
           background: ${color};
           color: #000;
         `;
         badge.textContent = locus;
         canvas.appendChild(badge);
       });
-    } catch (e) {}
-  });
+    });
+  };
+
+  let raf = 0;
+  const schedule = () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(render);
+  };
+  window.addEventListener('scroll', schedule, true);
+  window.addEventListener('resize', schedule, true);
+  window.__domGeneticsOverlayCleanup = () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('scroll', schedule, true);
+    window.removeEventListener('resize', schedule, true);
+    window.__domGeneticsOverlayCleanup = null;
+  };
+  render();
 }
 
 function applyPageGeneticsCss(css) {

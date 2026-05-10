@@ -97,7 +97,7 @@
     .codon-weight{font-size:9px;color:var(--dim);font-family:var(--mono);}
     .codon-payload{padding:8px;font-size:11px;color:var(--primary);font-family:var(--mono);line-height:1.5;}
     .codon-edit{width:100%;min-height:74px;background:#050505;border:0;border-top:1px solid var(--border);color:var(--primary);padding:8px;font-family:var(--mono);font-size:11px;line-height:1.5;resize:vertical;}
-    .codon-chat-row{display:grid;grid-template-columns:1fr auto;gap:6px;padding:6px 8px;border-top:1px solid var(--border);background:rgba(255,255,255,0.02);}
+    .codon-chat-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;padding:6px 8px;border-top:1px solid var(--border);background:rgba(255,255,255,0.02);}
     .codon-chat-input{min-width:0;background:#050505;border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:10px;padding:5px 6px;}
     .codon-tools{display:flex;gap:4px;align-items:center;}
     .codon-tools .pheno-btn{font-size:8px;padding:2px 6px;}
@@ -151,6 +151,21 @@
     .hint{font-size:10px;color:var(--dim);line-height:1.5;}
     .tab-url-line{color:var(--dim);font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .overlay-active-badge{display:inline-block;background:var(--exon);color:#000;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;}
+    .pipeline{display:grid;gap:6px;margin-bottom:10px;}
+    .pipeline-step{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);font-family:var(--mono);}
+    .pipeline-num{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface2);color:var(--dim);font-size:9px;font-weight:900;}
+    .pipeline-label{font-size:9px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:var(--text);}
+    .pipeline-state{font-size:8px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:var(--dim);}
+    .pipeline-step.ready{border-color:rgba(74,222,128,0.45);}
+    .pipeline-step.ready .pipeline-num,.pipeline-step.ready .pipeline-state{background:var(--exon);color:#000;}
+    .pipeline-step.work{border-color:rgba(96,165,250,0.6);}
+    .pipeline-step.work .pipeline-num,.pipeline-step.work .pipeline-state{background:var(--primary);color:#000;}
+    .diag-log{display:flex;flex-direction:column;gap:4px;max-height:130px;overflow:auto;font-family:var(--mono);}
+    .diag-entry{display:grid;grid-template-columns:auto 1fr;gap:6px;padding:5px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg);font-size:9px;line-height:1.35;color:var(--dim);}
+    .diag-entry.ok{border-color:rgba(74,222,128,0.35);color:var(--exon);}
+    .diag-entry.err{border-color:rgba(248,113,113,0.45);color:var(--danger);}
+    .diag-entry.work{border-color:rgba(96,165,250,0.4);color:var(--primary);}
+    .diag-time{color:var(--dim);}
   </style>
 </head>
 <body>
@@ -198,14 +213,31 @@
       <div id="current-page-info" class="hint" style="margin-bottom:10px;padding:8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
         Navigate to any website, then click Extract.
       </div>
+      <div class="pipeline">
+        <div class="pipeline-step" id="pipe-dom">
+          <div class="pipeline-num">1</div>
+          <div class="pipeline-label">DOM scan</div>
+          <div class="pipeline-state" id="pipe-dom-state">no LLM</div>
+        </div>
+        <div class="pipeline-step" id="pipe-local">
+          <div class="pipeline-num">2</div>
+          <div class="pipeline-label">Local transcript</div>
+          <div class="pipeline-state" id="pipe-local-state">waiting</div>
+        </div>
+        <div class="pipeline-step" id="pipe-ai">
+          <div class="pipeline-num">3</div>
+          <div class="pipeline-label">LLM encode</div>
+          <div class="pipeline-state" id="pipe-ai-state">optional</div>
+        </div>
+      </div>
       <div class="grid-2" style="margin-bottom:8px;">
-        <button class="btn primary" id="btn-extract">⬇ Extract Genome</button>
+        <button class="btn primary" id="btn-extract">⬇ Scan DOM</button>
         <button class="btn" id="btn-overlay" disabled>◈ Annotate DOM</button>
       </div>
       <div class="grid-3">
-        <button class="btn exon" id="btn-save" disabled>✦ Save to Lineage Vault</button>
-        <button class="btn accent" id="btn-load-genome" disabled>→ Edit Genotype</button>
-        <button class="btn purple" id="btn-ai-encode" disabled>AI Encode</button>
+        <button class="btn exon" id="btn-save" disabled>✦ Save Prompt Genome</button>
+        <button class="btn accent" id="btn-load-genome" disabled>→ Edit Prompt</button>
+        <button class="btn purple" id="btn-ai-encode" disabled>LLM Encode</button>
       </div>
       <div class="grid-2" style="margin-top:8px;">
         <button class="btn accent" id="btn-adopt-panel" disabled>Adopt Panel</button>
@@ -216,9 +248,16 @@
     <div class="section" id="extracted-codons-section" style="display:none;">
       <div class="section-title">
         <div class="sdot" style="background:var(--primary)"></div>
-        Extracted Codons <span id="codon-count-badge" style="font-size:9px;color:var(--primary);"></span>
+        DOM Alleles <span id="codon-count-badge" style="font-size:9px;color:var(--primary);"></span>
       </div>
       <div id="extracted-codons-container"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><div class="sdot" style="background:var(--danger)"></div>Run Log</div>
+      <div id="run-log" class="diag-log">
+        <div class="diag-entry"><span class="diag-time">--:--</span><span>Ready. No operation has run yet.</span></div>
+      </div>
     </div>
 
     <div id="extract-empty" class="empty-state">
@@ -231,7 +270,7 @@
   <!-- ══ GENOME ══ -->
   <div class="panel" id="panel-genome">
     <div class="section">
-      <div class="section-title"><div class="sdot" style="background:var(--primary)"></div>Active Genotype</div>
+      <div class="section-title"><div class="sdot" style="background:var(--primary)"></div>Prompt Genome</div>
       <div class="grid-3" style="margin-bottom:8px;">
         <button class="btn accent btn-add-codon" data-type="RSN" data-payload="Construct theory before output.">+ RSN</button>
         <button class="btn accent btn-add-codon" data-type="EVD" data-payload="Use only provided source material.">+ EVD</button>
@@ -251,7 +290,7 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-title"><div class="sdot" style="background:var(--exon)"></div>Codon Sequence</div>
+      <div class="section-title"><div class="sdot" style="background:var(--exon)"></div>Prompt Codon Sequence</div>
       <div id="genotype-container"></div>
     </div>
     <div class="section">
