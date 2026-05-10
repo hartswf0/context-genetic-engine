@@ -316,6 +316,61 @@ function extractDOMGenome(sourceUrl, sourceTitle) {
     });
   };
 
+  const cleanText = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const cssPath = el => {
+    if (!el || el === document.body) return 'body';
+    if (el.id) return `#${CSS.escape(el.id)}`;
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === 1 && node !== document.body && parts.length < 4) {
+      let part = node.tagName.toLowerCase();
+      const cls = [...node.classList || []].filter(Boolean).slice(0, 2);
+      if (cls.length) part += cls.map(c => `.${CSS.escape(c)}`).join('');
+      const parent = node.parentElement;
+      if (parent) {
+        const siblings = [...parent.children].filter(child => child.tagName === node.tagName);
+        if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+      }
+      parts.unshift(part);
+      node = parent;
+    }
+    return parts.join(' > ') || 'body';
+  };
+
+  const elementRecord = el => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return {
+      selector: cssPath(el),
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || '',
+      text: cleanText(el.innerText || el.getAttribute('aria-label') || el.getAttribute('alt') || '').slice(0, 180),
+      rect: {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        w: Math.round(rect.width),
+        h: Math.round(rect.height)
+      },
+      style: {
+        display: style.display,
+        position: style.position,
+        color: style.color,
+        background: style.backgroundColor,
+        font: style.fontFamily.split(',')[0].replace(/['"]/g, '').trim(),
+        size: style.fontSize,
+        weight: style.fontWeight,
+        radius: style.borderRadius
+      }
+    };
+  };
+
+  const visible = el => {
+    if (!el || el === document.documentElement) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 8 && rect.height > 8 && style.visibility !== 'hidden' && style.display !== 'none';
+  };
+
   // ── LOCUS: LAYOUT ── dominant structural grammar
   try {
     const body = document.body;
@@ -413,6 +468,52 @@ function extractDOMGenome(sourceUrl, sourceTitle) {
     const feel = radii.has('9999px') || radii.has('50%') ? 'PILL/ROUNDED' : [...radii].some(r => parseInt(r) > 12) ? 'SOFT' : [...radii].some(r => parseInt(r) > 0) ? 'SLIGHTLY_ROUNDED' : 'SHARP';
     push('RADIUS', `Border-radius feel: ${feel}. Values: ${[...radii].slice(0, 5).join(', ')}.`, 55, 'buttons');
   } catch (e) {}
+
+  try {
+    const landmarks = [...document.querySelectorAll('header, nav, main, section, article, aside, footer, form')]
+      .filter(visible)
+      .slice(0, 16)
+      .map(elementRecord);
+    const components = [...document.querySelectorAll('button, a[href], input, select, textarea, [role="button"], [class*="card"], [class*="panel"], [class*="tile"]')]
+      .filter(visible)
+      .slice(0, 24)
+      .map(elementRecord);
+    const textBlocks = [...document.querySelectorAll('h1,h2,h3,p,li,button,a[href],label')]
+      .filter(visible)
+      .map(elementRecord)
+      .filter(item => item.text)
+      .slice(0, 18);
+    const media = [...document.querySelectorAll('img, picture, video, svg, canvas')]
+      .filter(visible)
+      .slice(0, 12)
+      .map(el => ({
+        selector: cssPath(el),
+        tag: el.tagName.toLowerCase(),
+        alt: cleanText(el.getAttribute('alt') || el.getAttribute('aria-label') || ''),
+        src: cleanText(el.currentSrc || el.src || '').slice(0, 220)
+      }));
+
+    genome.evidencePacket = {
+      protocol: 'CGE-DOM-EVIDENCE/1.0',
+      source: { url: sourceUrl, title: sourceTitle },
+      viewport: { width: window.innerWidth, height: window.innerHeight, scrollHeight: document.documentElement.scrollHeight },
+      stats: {
+        elements: document.querySelectorAll('*').length,
+        buttons: document.querySelectorAll('button, [role="button"]').length,
+        links: document.querySelectorAll('a[href]').length,
+        inputs: document.querySelectorAll('input,select,textarea').length,
+        media: document.querySelectorAll('img,picture,video,svg,canvas').length,
+        words: cleanText(document.body.innerText).split(/\s+/).filter(Boolean).length
+      },
+      landmarks,
+      components,
+      textBlocks,
+      media,
+      rankedSelectors: [...new Set([...landmarks, ...components, ...textBlocks].map(item => item.selector))].slice(0, 40)
+    };
+  } catch (e) {
+    genome.evidencePacket = { protocol: 'CGE-DOM-EVIDENCE/1.0', error: e.message };
+  }
 
   return genome;
 }
