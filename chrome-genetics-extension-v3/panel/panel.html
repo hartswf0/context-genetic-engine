@@ -194,6 +194,10 @@
     .diag-time{color:var(--dim);}
     .encoder-row{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:10px;}
     .encoder-label{font-family:var(--mono);font-size:9px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);}
+    .guardrail-grid{display:grid;grid-template-columns:1fr;gap:6px;margin:10px 0;}
+    .guardrail-card{border:1px solid var(--border);background:#030303;border-radius:4px;padding:7px 8px;}
+    .guardrail-card b{display:block;font:900 9px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px;}
+    .guardrail-card span{display:block;font:10px/1.45 var(--sans);color:var(--dim);}
     @media (prefers-reduced-motion: reduce){
       .dna-rung{animation:none;}
       .operation-progress-fill{transition:none;}
@@ -290,9 +294,23 @@
           <div class="pipeline-state" id="pipe-ai-state">optional</div>
         </div>
       </div>
+      <div class="guardrail-grid" aria-label="evolution guardrails">
+        <div class="guardrail-card">
+          <b>Preserve</b>
+          <span>Mutations trace and collage first. They should not erase the source design.</span>
+        </div>
+        <div class="guardrail-card">
+          <b>Vary</b>
+          <span>Use enough candidates to create options; keep variation constrained and reversible.</span>
+        </div>
+        <div class="guardrail-card">
+          <b>Select</b>
+          <span>Fitness comes from the task. Cross offspring, compare, then inherit the selected genome.</span>
+        </div>
+      </div>
       <div class="grid-2" style="margin-bottom:8px;">
         <button class="btn primary" id="btn-extract">⬇ Scan DOM</button>
-        <button class="btn" id="btn-overlay" disabled>◈ Annotate DOM</button>
+        <button class="btn" id="btn-overlay" disabled>◈ Map Genome</button>
       </div>
       <div class="grid-3">
         <button class="btn exon" id="btn-save" disabled>✦ Save Prompt Genome</button>
@@ -509,10 +527,10 @@
     <div class="section">
       <div class="section-title"><div class="sdot" style="background:var(--teal)"></div>Theory of the Program</div>
       <div class="hint" style="line-height:1.7;">
-        <b style="color:var(--primary)">EXTRACT:</b> Samples a live website into typed codons.<br><br>
-        <b style="color:var(--exon)">GENOME:</b> Turns those codons into an editable prompt genotype with EXON / INTRON control.<br><br>
-        <b style="color:var(--yellow)">FIELD:</b> Applies the active genotype to a target task and renders the completion artifact.<br><br>
-        <b style="color:var(--orange)">LINEAGE / BREED:</b> Stores genomes, selects parents, crosses codons, and expresses offspring.
+        <b style="color:var(--primary)">CAPTURE:</b> Sample the page as evidence, not as destiny.<br><br>
+        <b style="color:var(--exon)">VARIETY:</b> Generate enough constrained alternatives to discover what planning would miss.<br><br>
+        <b style="color:var(--yellow)">FITNESS:</b> Better is defined by the selection pressure, not by mutation alone.<br><br>
+        <b style="color:var(--orange)">LINEAGE:</b> Preserve parents, offspring, traces, and selected winners so evolution is reversible.
       </div>
     </div>
   </div>

@@ -19,11 +19,11 @@ saved genomes -> lineage vault -> parent selection -> Punnett cross -> expressed
 
 ## Panels
 
-- `Extract`: samples the active tab into raw DOM observations, shows a live operation veil on the page, lets you choose `g1`, `f4`, `phub`, or `hybrid`, then transcribes evidence into that genome grammar.
+- `Extract`: samples the active tab into raw DOM observations, shows a live operation veil on the page, lets you choose `g1`, `f4`, `phub`, or `hybrid`, then transcribes evidence into that genome grammar. The live page mutation path is trace-first: it maps inheritance without overwriting the site's original design.
 - `Genome`: edits the active genotype, toggles EXON/INTRON state, nests raw DOM alleles under prompt codons as evidence, adds manual codons, attaches codon reference images, and lets you query, mutate, or express individual codons inline.
 - `Field`: applies the active genotype to a target task, renders a completion artifact, and can apply that artifact as a reversible live-page overlay.
 - `Lineage`: stores and reloads genomes.
-- `Breed`: selects two parents, generates an F1 competition matrix, scores offspring, selects a winner back into the active genome, and expresses crossed phenotypes.
+- `Breed`: selects two parents, generates an F1 competition matrix, scores offspring, selects a winner back into the active genome, and expresses crossed phenotypes. Mutation is treated as variety, not improvement; selection pressure defines what survives.
 - `Config`: chooses Gemini, OpenAI Reasoning, Anthropic, or local Llama, and sets codon candidate count for mutation passes.
 
 ## Provider Setup

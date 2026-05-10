@@ -1054,10 +1054,10 @@ function collectEncodingImages() {
 // ─── OVERLAY ──────────────────────────────────────────────────────────────────
 // Theory: [annotate] operation — toggles the shadow-DOM overlay on the live page
 function toggleOverlay() {
-  const overlayGenome = rawPageGenome || currentGenome;
+  const overlayGenome = getOverlayGenome();
   if (!overlayGenome) return;
   overlayActive = !overlayActive;
-  updateEncodingChip('overlay', overlayActive ? 'OVERLAY ON' : 'OVERLAY OFF', overlayActive ? 'on' : '');
+  updateEncodingChip('overlay', overlayActive ? 'MAP ON' : 'MAP OFF', overlayActive ? 'on' : '');
 
   chrome.runtime.sendMessage({
     type: 'TOGGLE_OVERLAY',
@@ -1071,12 +1071,12 @@ function toggleOverlay() {
     const btn = document.getElementById('btn-overlay');
     const badge = document.getElementById('overlay-status');
     if (overlayActive) {
-      btn.textContent = '◈ Hide Annotation';
+      btn.textContent = '◈ Hide Map';
       btn.style.borderColor = 'var(--exon)';
       btn.style.color = 'var(--exon)';
-      badge.innerHTML = '<span class="overlay-active-badge">OVERLAY ON</span>';
+      badge.innerHTML = '<span class="overlay-active-badge">MAP ON</span>';
     } else {
-      btn.textContent = '◈ Annotate DOM';
+      btn.textContent = '◈ Map Genome';
       btn.style.borderColor = '';
       btn.style.color = '';
       badge.innerHTML = '';
@@ -1085,13 +1085,24 @@ function toggleOverlay() {
 }
 
 function refreshOverlayIfActive() {
-  const overlayGenome = rawPageGenome || currentGenome;
+  const overlayGenome = getOverlayGenome();
   if (!overlayActive || !overlayGenome) return;
   chrome.runtime.sendMessage({
     type: 'TOGGLE_OVERLAY',
     payload: { genome: overlayGenome, show: true }
   }, (resp) => {
     if (resp?.error) setStatus(`ANNOTATION REFRESH FAILED: ${resp.error}`, 'err');
+  });
+}
+
+function getOverlayGenome() {
+  const genome = currentGenome?.codons?.length ? currentGenome : rawPageGenome;
+  if (!genome) return null;
+  return normalizeGenome({
+    ...genome,
+    sourceTitle: genome.sourceTitle || rawPageGenome?.sourceTitle || 'Active Genome',
+    sourceUrl: genome.sourceUrl || rawPageGenome?.sourceUrl || 'genoma://active',
+    codons: (genome.codons || []).map(codon => ({ ...codon }))
   });
 }
 
@@ -1144,12 +1155,10 @@ function buildPageGeneticCss() {
   const primary = colors[0] || '#60a5fa';
   const secondary = colors[1] || '#f472b6';
   const accent = colors[2] || '#fbbf24';
-  const font = extractFontName(getRawCodonPayload('TYPOGRAPHY'));
-  const radius = radiusFromPayload(getRawCodonPayload('RADIUS'));
   const active = activeCodons();
   const activeLabels = active.map(c => c.type).join(' ');
   const sourceTitle = rawPageGenome?.sourceTitle || currentGenome?.sourceTitle || 'page';
-  const badgeText = cssContent(`CGE ${activeLabels || 'NO EXONS'} · ${sourceTitle}`);
+  const badgeText = cssContent(`GENOMA TRACE ${activeLabels || 'NO EXONS'} · ${sourceTitle}`);
   const targetSelectors = selectorList(active.map(c => c.selector).filter(Boolean));
   const evidenceSelectors = selectorList((rawPageGenome?.evidencePacket?.rankedSelectors || []).slice(0, 12));
   const headlineSelectors = selectorList(['h1', 'h2', 'h3']);
@@ -1157,6 +1166,11 @@ function buildPageGeneticCss() {
   const structureSelectors = selectorList(['main', 'section', 'article', 'form', '[class*="card"]', '[class*="panel"]']);
 
   return `
+    :root {
+      --genoma-inherited-primary: ${primary};
+      --genoma-inherited-secondary: ${secondary};
+      --genoma-inherited-accent: ${accent};
+    }
     html::before {
       content: "${badgeText}";
       position: fixed;
@@ -1173,31 +1187,25 @@ function buildPageGeneticCss() {
       pointer-events: none;
       box-shadow: 0 0 0 2px ${secondary};
     }
-    ${font ? `body, button, input, textarea, select { font-family: ${JSON.stringify(font)}, system-ui, sans-serif !important; }` : ''}
     ${actionSelectors} {
-      border-radius: ${radius} !important;
-      border: 2px solid ${primary} !important;
-      background-image: linear-gradient(135deg, ${primary}22, ${secondary}18) !important;
-      box-shadow: 0 0 0 3px ${primary}22 !important;
-    }
-    ${headlineSelectors} {
-      text-shadow: 2px 2px 0 #000 !important;
-      outline: 3px solid ${accent} !important;
-      outline-offset: 4px !important;
-      padding-inline: 0.08em !important;
-    }
-    ${structureSelectors} {
-      box-shadow: inset 0 0 0 2px ${secondary}55 !important;
-      border-radius: ${radius} !important;
-    }
-    ${evidenceSelectors} {
-      outline: 2px dashed ${accent}cc !important;
+      outline: 1px solid ${primary}99 !important;
       outline-offset: 2px !important;
     }
+    ${headlineSelectors} {
+      outline: 2px solid ${accent}aa !important;
+      outline-offset: 5px !important;
+    }
+    ${structureSelectors} {
+      outline: 1px dashed ${secondary}88 !important;
+      outline-offset: -3px !important;
+    }
+    ${evidenceSelectors} {
+      box-shadow: inset 0 0 0 2px ${accent}66 !important;
+    }
     ${targetSelectors} {
-      outline: 4px solid ${primary} !important;
-      outline-offset: 4px !important;
-      filter: saturate(1.18) contrast(1.08) !important;
+      outline: 3px solid ${primary} !important;
+      outline-offset: 6px !important;
+      box-shadow: 0 0 0 2px #000, 0 0 24px ${primary}77 !important;
     }
   `;
 }

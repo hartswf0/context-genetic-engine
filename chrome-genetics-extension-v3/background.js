@@ -639,8 +639,17 @@ function toggleDOMOverlay(genome, show) {
   const LOCUS_COLORS = {
     LAYOUT: '#60a5fa', COLOR: '#f472b6', TYPOGRAPHY: '#a78bfa',
     SPACING: '#34d399', COMPONENT: '#fbbf24', INTERACTION: '#f87171',
-    COPY: '#22d3ee', RADIUS: '#fb923c'
+    COPY: '#22d3ee', RADIUS: '#fb923c',
+    RSN: '#60a5fa', EVD: '#34d399', OUT: '#f8fafc',
+    FLR: '#f87171', FIT: '#c084fc', CST: '#e5e7eb',
+    STY: '#a78bfa', MUT: '#f472b6', SEL: '#fbbf24',
+    ENT: '#60a5fa', MOR: '#34d399', ENV: '#fbbf24', TRC: '#22d3ee'
   };
+  const LOCUS_ORDER = [
+    'LAYOUT', 'COLOR', 'TYPOGRAPHY', 'SPACING', 'COMPONENT', 'INTERACTION', 'COPY', 'RADIUS',
+    'RSN', 'EVD', 'OUT', 'FLR', 'FIT', 'CST', 'STY', 'MUT', 'SEL', 'ENT', 'MOR', 'ENV', 'TRC'
+  ];
+  const codons = Array.isArray(genome?.codons) ? genome.codons : [];
 
   const css = `
     * { box-sizing: border-box; }
@@ -659,6 +668,10 @@ function toggleDOMOverlay(genome, show) {
       position: absolute; pointer-events: none; border: 2px solid;
       border-radius: 2px; z-index: 0; opacity: 0.4;
     }
+    .locus-line {
+      position: absolute; height: 1px; transform-origin: left center; pointer-events: none;
+      background: currentColor; opacity: .58; z-index: 0;
+    }
   `;
 
   const style = document.createElement('style');
@@ -669,9 +682,9 @@ function toggleDOMOverlay(genome, show) {
   canvas.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none;';
   shadow.appendChild(canvas);
 
-  const usedLoci = [...new Set((genome.codons || []).map(c => c.locus || c.type))]
+  const usedLoci = [...new Set(codons.map(c => c.type || c.locus))]
     .filter(Boolean)
-    .sort((a, b) => ['LAYOUT', 'COLOR', 'TYPOGRAPHY', 'SPACING', 'COMPONENT', 'INTERACTION', 'COPY', 'RADIUS'].indexOf(a) - ['LAYOUT', 'COLOR', 'TYPOGRAPHY', 'SPACING', 'COMPONENT', 'INTERACTION', 'COPY', 'RADIUS'].indexOf(b));
+    .sort((a, b) => LOCUS_ORDER.indexOf(a) - LOCUS_ORDER.indexOf(b));
 
   const legend = document.createElement('div');
   legend.className = 'legend';
@@ -694,7 +707,7 @@ function toggleDOMOverlay(genome, show) {
     catch (e) { return []; }
   };
 
-  const targetsFor = locus => {
+  const targetsForLocus = locus => {
     const map = {
       LAYOUT: () => [document.querySelector('main'), document.querySelector('[class*="container"]'), document.body].filter(visible).slice(0, 2),
       COLOR: () => query('header, nav, button, [role="button"], a[href]').slice(0, 5),
@@ -708,11 +721,41 @@ function toggleDOMOverlay(genome, show) {
     return map[locus] ? map[locus]() : [];
   };
 
+  const fallbackTargetsFor = type => {
+    if (targetsForLocus(type).length) return targetsForLocus(type);
+    const map = {
+      RSN: () => [document.querySelector('main'), document.body].filter(visible).slice(0, 2),
+      EVD: () => [document.body].filter(visible),
+      OUT: () => query('main, section, article, [role="main"]').slice(0, 4),
+      FLR: () => query('form, input, button, [role="button"]').slice(0, 5),
+      FIT: () => query('button, a[href], [role="button"], form, [class*="card"], [class*="panel"]').slice(0, 7),
+      CST: () => query('h1,h2,h3,button,input,[class*="card"]').slice(0, 6),
+      STY: () => query('h1,h2,h3,button,[class*="card"]').slice(0, 5),
+      MUT: () => query('main,section,article').slice(0, 4),
+      SEL: () => query('button,a[href],[role="button"]').slice(0, 5),
+      ENT: () => query('main,section,article,form,button,input,[class*="card"]').slice(0, 8),
+      MOR: () => query('button,a[href],form,input').slice(0, 7),
+      ENV: () => query('main,section,article').slice(0, 4),
+      TRC: () => [document.body].filter(visible)
+    };
+    return map[type] ? map[type]() : [document.body].filter(visible);
+  };
+
+  const targetsForCodon = codon => {
+    const selector = String(codon.selector || '').trim();
+    if (selector) {
+      const selected = query(selector).slice(0, 6);
+      if (selected.length) return selected;
+    }
+    return fallbackTargetsFor(codon.type || codon.locus);
+  };
+
   const render = () => {
     canvas.textContent = '';
-    usedLoci.forEach(locus => {
+    codons.slice(0, 18).forEach((codon, index) => {
+      const locus = codon.type || codon.locus || 'CODON';
       const color = LOCUS_COLORS[locus] || '#fff';
-      const targets = targetsFor(locus);
+      const targets = targetsForCodon(codon);
       targets.forEach(el => {
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
@@ -725,6 +768,7 @@ function toggleDOMOverlay(genome, show) {
           width: ${rect.width}px;
           height: ${rect.height}px;
           border-color: ${color};
+          opacity: ${Math.max(0.24, Math.min(0.7, (codon.weight || 60) / 140))};
         `;
         canvas.appendChild(outline);
 
@@ -738,6 +782,20 @@ function toggleDOMOverlay(genome, show) {
         `;
         badge.textContent = locus;
         canvas.appendChild(badge);
+
+        if (index < 8) {
+          const line = document.createElement('div');
+          line.className = 'locus-line';
+          const startX = Math.max(0, rect.left + Math.min(rect.width, 18));
+          const startY = Math.max(0, rect.top + 12);
+          line.style.cssText = `
+            left: ${startX}px;
+            top: ${startY}px;
+            width: ${Math.max(24, Math.min(180, rect.width * 0.45))}px;
+            color: ${color};
+          `;
+          canvas.appendChild(line);
+        }
       });
     });
   };
