@@ -227,12 +227,54 @@ function setStatus(text, state = 'idle') {
   dna?.classList.toggle('active', state === 'work');
   if (state === 'work') {
     startStatusTimer(text);
+    showLiveOperation(text);
   } else {
     stopStatusTimer(state);
+    hideLiveOperation(state);
     label.textContent = text;
     if (elapsed) elapsed.textContent = '';
   }
   if (text && text !== 'READY') appendRunLog(text, state);
+}
+
+function showLiveOperation(label) {
+  chrome.runtime.sendMessage({
+    type: 'SHOW_OPERATION_OVERLAY',
+    payload: {
+      show: true,
+      label,
+      mode: operationMode(label),
+      selectors: collectLiveSelectors()
+    }
+  }, () => void chrome.runtime.lastError);
+}
+
+function hideLiveOperation(state) {
+  const delay = state === 'ok' ? 900 : 150;
+  setTimeout(() => {
+    chrome.runtime.sendMessage({
+      type: 'SHOW_OPERATION_OVERLAY',
+      payload: { show: false }
+    }, () => void chrome.runtime.lastError);
+  }, delay);
+}
+
+function operationMode(label) {
+  const text = String(label || '');
+  if (/SCAN|EXTRACT/i.test(text)) return 'capture';
+  if (/ENCOD|QUERY/i.test(text)) return 'encode';
+  if (/BREED|PUNNETT|CROSS/i.test(text)) return 'cross';
+  if (/MUTAT|APPLY/i.test(text)) return 'mutate';
+  if (/EXPRESS|ARTIFACT|PHENOTYPE/i.test(text)) return 'express';
+  return 'runtime';
+}
+
+function collectLiveSelectors() {
+  const selectors = activeCodons()
+    .map(codon => codon.selector)
+    .filter(Boolean);
+  const ranked = rawPageGenome?.evidencePacket?.rankedSelectors || [];
+  return [...new Set([...selectors, ...ranked])].slice(0, 10);
 }
 
 function startStatusTimer(text) {
@@ -644,7 +686,7 @@ function renderGenomeEditor() {
   if (!genome.codons.length) {
     container.innerHTML = `
       <div class="empty-state">
-        <img class="empty-icon-img" src="../icons/icon48.png" alt="">
+        <img class="empty-icon-img" src="../icons/genoma-mark.svg" alt="">
         <div class="empty-title">No Active Codons</div>
         <div class="empty-desc">Extract a page or add manual codons to build the active genotype.</div>
       </div>`;
@@ -1261,7 +1303,7 @@ function renderLineage() {
   if (keys.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <img class="empty-icon-img" src="../icons/icon48.png" alt="">
+        <img class="empty-icon-img" src="../icons/genoma-mark.svg" alt="">
         <div class="empty-title">Vault Empty</div>
         <div class="empty-desc">Extract a genome and save it to build your lineage.</div>
       </div>`;
@@ -1296,7 +1338,7 @@ function createGenomeCard(genome, key) {
 
   card.innerHTML = `
     <div class="genome-card-header">
-      <img class="genome-favicon" src="../icons/icon48.png" alt="">
+      <img class="genome-favicon" src="../icons/genoma-mark.svg" alt="">
       <div style="flex:1; min-width:0;">
         <div class="genome-title">${escHtml(genome.sourceTitle || hostname)}</div>
         <div class="genome-url">${escHtml(genome.sourceUrl)}</div>
@@ -1490,6 +1532,7 @@ function runPunnettCross() {
   offspring.forEach((child, i) => {
     const card = document.createElement('div');
     card.style.cssText = 'border:1px solid var(--border); border-radius:6px; overflow:hidden; background:var(--surface);';
+    const fitness = scoreOffspring(child);
 
     const codonTags = child.codons.map(c => {
       const color = LOCUS_COLORS[c.locus] || '#fff';
@@ -1499,12 +1542,15 @@ function runPunnettCross() {
     card.innerHTML = `
       <div style="padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:900; font-size:10px; color:var(--yellow); letter-spacing:0.1em;">${child.name}</span>
-        <span style="font-size:9px; color:var(--dim);">${child.codons.length} loci</span>
+        <span style="font-size:9px; color:var(--dim);">FIT ${fitness} · ${child.codons.length} loci</span>
       </div>
       <div style="padding:8px 10px; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">${codonTags}</div>
-      <div style="padding:0 10px 10px;">
+      <div style="padding:0 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn exon js-select-offspring" data-index="${i}" style="width:100%; font-size:10px; padding:6px;">
+          Select
+        </button>
         <button class="btn accent js-express-offspring" data-index="${i}" style="width:100%; font-size:10px; padding:6px;">
-          ✦ Express This Phenotype
+          Express
         </button>
       </div>
     `;
@@ -1520,10 +1566,39 @@ function runPunnettCross() {
   setTimeout(() => setStatus('READY'), 3000);
 }
 
+function scoreOffspring(child) {
+  const codons = child?.codons || [];
+  if (!codons.length) return 0;
+  const averageWeight = codons.reduce((sum, codon) => sum + normalizeWeight(codon.weight), 0) / codons.length;
+  const diversity = new Set(codons.map(codon => codon.locus || codon.type)).size * 2;
+  return Math.min(100, Math.round(averageWeight + diversity));
+}
+
 function handleOffspringClick(event) {
+  const selectButton = event.target.closest('.js-select-offspring');
+  if (selectButton) {
+    selectOffspring(parseInt(selectButton.dataset.index, 10));
+    return;
+  }
   const button = event.target.closest('.js-express-offspring');
   if (!button) return;
   expressOffspring(parseInt(button.dataset.index, 10));
+}
+
+function selectOffspring(index) {
+  const offspring = window._lastOffspring?.[index];
+  if (!offspring) return;
+  currentGenome = normalizeGenome({
+    sourceTitle: `${offspring.name} · Selected Phenotype`,
+    sourceUrl: 'genoma://selected-offspring',
+    timestamp: Date.now(),
+    synthetic: true,
+    codons: offspring.codons.map(codon => ({ ...codon, state: codon.state || 'EXON' }))
+  });
+  renderGenomeEditor();
+  switchTab('genome');
+  setStatus(`SELECTED ${offspring.name} AS ACTIVE GENOME`, 'ok');
+  setTimeout(() => setStatus('READY'), 2400);
 }
 
 async function expressOffspring(index) {

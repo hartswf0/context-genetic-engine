@@ -125,6 +125,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
 
+    case 'SHOW_OPERATION_OVERLAY': {
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (!tabs[0]) return sendResponse({ error: 'No active tab' });
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: showOperationOverlay,
+            args: [payload]
+          });
+          sendResponse({ ok: true });
+        } catch (e) {
+          sendResponse({ error: e.message });
+        }
+      });
+      return true;
+    }
+
     // ── STORAGE: Save a genome to the lineage vault
     case 'SAVE_GENOME': {
       const key = `genome:${Date.now()}`;
@@ -750,6 +767,114 @@ function applyPageGeneticsCss(css) {
     document.documentElement.appendChild(style);
   }
   style.textContent = String(css || '');
+}
+
+function showOperationOverlay(payload = {}) {
+  const HOST_ID = '__cge_operation_overlay__';
+  const show = payload.show !== false;
+  const existing = document.getElementById(HOST_ID);
+
+  if (!show) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  const label = String(payload.label || 'GENOMA OPERATION').slice(0, 96);
+  const mode = String(payload.mode || 'runtime').toUpperCase().slice(0, 24);
+  const selectors = Array.isArray(payload.selectors) ? payload.selectors.slice(0, 10) : [];
+
+  if (existing) existing.remove();
+
+  const host = document.createElement('div');
+  host.id = HOST_ID;
+  host.style.cssText = 'position:fixed;inset:0;z-index:2147483645;pointer-events:none;';
+  document.documentElement.appendChild(host);
+
+  const shadow = host.attachShadow({ mode: 'open' });
+  const style = document.createElement('style');
+  style.textContent = `
+    :host { all: initial; }
+    .veil {
+      position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.02) 28%, rgba(0,0,0,.16)),
+        repeating-linear-gradient(0deg, rgba(28,176,198,.16) 0 1px, transparent 1px 12px);
+      animation: scan 3.8s linear infinite;
+      mix-blend-mode: normal;
+    }
+    .beam {
+      position: absolute; left: 0; right: 0; height: 96px; top: -110px;
+      background: linear-gradient(180deg, transparent, rgba(28,176,198,.22), rgba(248,140,34,.18), transparent);
+      animation: beam 4.6s ease-in-out infinite;
+    }
+    .plate {
+      position: fixed; left: 12px; top: 12px; min-width: 230px; max-width: min(430px, calc(100vw - 24px));
+      background: #000; color: #fff; border: 2px solid #fff; box-shadow: 6px 6px 0 #1cb0c6;
+      padding: 10px 12px; font: 900 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+    .mark { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; vertical-align: middle; }
+    .label { color: #f88c22; margin-top: 5px; font-size: 10px; letter-spacing: .04em; text-transform: none; }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+    .step { border: 1px solid #fff; color: #fff; padding: 3px 4px; text-align: center; font-size: 8px; }
+    .step.on { background: #fff; color: #000; }
+    .target {
+      position: fixed; border: 2px solid #f88c22; box-shadow: 0 0 0 2px #000, 0 0 22px rgba(248,140,34,.44);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes scan { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 48px; } }
+    @keyframes beam { 0%, 100% { transform: translateY(-120px); opacity: .2; } 50% { transform: translateY(calc(100vh + 120px)); opacity: .72; } }
+    @keyframes pulse { 0%,100% { opacity:.34; transform: scale(1); } 50% { opacity:.9; transform: scale(1.01); } }
+    @media (prefers-reduced-motion: reduce) {
+      .veil,.beam,.target { animation: none; }
+    }
+  `;
+  shadow.appendChild(style);
+
+  const veil = document.createElement('div');
+  veil.className = 'veil';
+  const beam = document.createElement('div');
+  beam.className = 'beam';
+  const plate = document.createElement('div');
+  plate.className = 'plate';
+  plate.innerHTML = `
+    <span class="mark">
+      <svg viewBox="0 0 100 100" fill="none" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15,45 C15,20 35,10 65,10 L65,28 C45,28 35,32 35,45 Z" fill="#1cb0c6"/>
+        <rect x="15" y="52" width="40" height="18" rx="4" fill="#1cb0c6"/>
+        <path d="M58,35 L80,35 L80,65 C80,85 60,92 35,92 L35,74 C50,74 58,70 58,65 Z" fill="#f88c22"/>
+      </svg>
+    </span>${escapeText(mode)}
+    <div class="label">${escapeText(label)}</div>
+    <div class="steps">
+      <div class="step on">CAPTURE</div>
+      <div class="step ${/ENCOD|MUTAT|EXPRESS|BREED/i.test(label) ? 'on' : ''}">ENCODE</div>
+      <div class="step ${/MUTAT|BREED|PUNNETT|CROSS/i.test(label) ? 'on' : ''}">CROSS</div>
+      <div class="step ${/EXPRESS|ARTIFACT|PHENOTYPE|SELECT/i.test(label) ? 'on' : ''}">SELECT</div>
+    </div>
+  `;
+  shadow.append(veil, beam, plate);
+
+  selectors
+    .map(selector => {
+      try { return document.querySelector(selector); } catch (e) { return null; }
+    })
+    .filter(Boolean)
+    .slice(0, 8)
+    .forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return;
+      const box = document.createElement('div');
+      box.className = 'target';
+      box.style.cssText = `left:${Math.max(0, rect.left)}px;top:${Math.max(0, rect.top)}px;width:${rect.width}px;height:${rect.height}px;`;
+      shadow.appendChild(box);
+    });
+
+  function escapeText(value) {
+    return String(value || '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+  }
 }
 
 function applyArtifactOverlay(html) {

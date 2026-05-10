@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DOM Genetics Engine",
+  "name": "GENOMA Prompt Genetics",
   "version": "1.0.0",
-  "description": "Extract, breed, and express UI genomes from any website. Encode live DOM as prompt codons. Cross-breed sites into novel phenotypes.",
+  "description": "Capture, breed, and express prompt genomes from live websites.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -33,7 +33,7 @@
     "default_path": "panel/panel.html"
   },
   "action": {
-    "default_title": "DOM Genetics Engine"
+    "default_title": "GENOMA Prompt Genetics"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self' blob: data:;"

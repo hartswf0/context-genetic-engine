@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOM Genetics Engine</title>
+  <title>GENOMA Prompt Genetics</title>
   <style>
     :root {
       --bg:#050505; --surface:#111; --surface2:#1b1b1b; --border:#6f7a86;
@@ -206,10 +206,10 @@
   <!-- HEADER -->
   <header class="header">
     <div class="header-brand">
-      <img src="../icons/icon48.png" alt="" width="28" height="28">
+      <img src="../icons/genoma-mark.svg" alt="" width="28" height="28">
       <div>
-        <div class="header-title">DOM Genetics</div>
-        <div class="header-sub">Extract · Breed · Express</div>
+        <div class="header-title">GENOMA</div>
+        <div class="header-sub">Capture · Cross · Select</div>
       </div>
     </div>
     <div id="overlay-status"></div>
@@ -321,7 +321,7 @@
     </div>
 
     <div id="extract-empty" class="empty-state">
-      <img class="empty-icon-img" src="../icons/icon48.png" alt="">
+        <img class="empty-icon-img" src="../icons/genoma-mark.svg" alt="">
       <div class="empty-title">No Genome Extracted</div>
       <div class="empty-desc">Navigate to any website and click <b>Extract Genome</b> to sample its DNA — layout, color, typography, components, and interaction patterns.</div>
     </div>
@@ -354,9 +354,9 @@
       <div id="genotype-container"></div>
     </div>
     <div class="section">
-      <div class="section-title"><div class="sdot" style="background:var(--purple)"></div>Chat With Genotype</div>
-      <textarea class="textarea" id="genome-chat-input" placeholder="Ask about the active genotype, request a mutation, or ask what it will express." style="margin-bottom:8px;"></textarea>
-      <button class="btn purple" id="btn-genome-chat" style="width:100%;margin-bottom:8px;">Ask Genotype</button>
+      <div class="section-title"><div class="sdot" style="background:var(--purple)"></div>Mutation Bench</div>
+      <textarea class="textarea" id="genome-chat-input" placeholder="Mutate the active genotype, sharpen selection pressure, or ask what phenotype it will express." style="margin-bottom:8px;"></textarea>
+      <button class="btn purple" id="btn-genome-chat" style="width:100%;margin-bottom:8px;">Run Bench</button>
       <div id="genome-chat-log" class="pheno-wrap"></div>
     </div>
   </div>
@@ -429,8 +429,8 @@
     </div>
 
     <div class="section">
-      <div class="section-title"><div class="sdot" style="background:var(--purple)"></div>Breeding Directive</div>
-      <textarea class="textarea" id="breed-directive" placeholder="Describe fitness target... e.g. 'Combine the colors of Parent A with the layout of Parent B. Make it dark mode.'" style="margin-bottom:8px;"></textarea>
+      <div class="section-title"><div class="sdot" style="background:var(--purple)"></div>Selection Pressure</div>
+      <textarea class="textarea" id="breed-directive" placeholder="Define the fitness target. Example: inherit Parent A's interface discipline, Parent B's affordances, and produce a phenotype that is easier to operate." style="margin-bottom:8px;"></textarea>
       <div class="grid-2" style="margin-bottom:6px;">
         <button class="btn purple" id="btn-punnett" disabled>⚗ Punnett Cross</button>
         <button class="btn accent" id="btn-ai-breed" disabled>✦ AI Express</button>
@@ -452,7 +452,7 @@
         </div>
         <div id="pheno-text">
           <div class="empty-state" style="border:none;margin:0;">
-            <img class="empty-icon-img" src="../icons/icon48.png" alt="">
+            <img class="empty-icon-img" src="../icons/genoma-mark.svg" alt="">
             <div class="empty-desc">Select two genomes and run a cross to generate offspring.</div>
           </div>
         </div>
@@ -461,7 +461,7 @@
     </div>
 
     <div class="section" id="offspring-section" style="display:none;">
-      <div class="section-title"><div class="sdot" style="background:var(--yellow)"></div>F1 Offspring Matrix</div>
+      <div class="section-title"><div class="sdot" style="background:var(--yellow)"></div>F1 Competition Matrix</div>
       <div id="offspring-container" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
