@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENOMA Actual Page Mutator</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div class="mark" aria-hidden="true"><img src="../icons/icon48.png" alt=""></div>
+      <div class="titleBlock">
+        <h1>GENOMA Actual Page Mutator</h1>
+        <p>one input · local codons first · optional LLM · safe real-page patches</p>
+      </div>
+      <div id="status" class="status idle">READY</div>
+    </header>
+
+    <section class="command">
+      <label for="directive">ONE INSTRUCTION</label>
+      <textarea id="directive" spellcheck="false">Evolve this actual page without losing any content or functionality. Make it clearer, more playable, and more operational. Preserve all links, buttons, forms, product paths, and source content.</textarea>
+      <div class="actions primaryActions">
+        <button id="btnCapture" class="primary">1 · Capture Real Page</button>
+        <button id="btnWhole" class="primary">2 · Evolve Whole Page</button>
+        <button id="btnAnnotate">Annotate</button>
+        <button id="btnUndo">Undo Patch</button>
+      </div>
+      <div class="actions secondaryActions">
+        <button id="btnPatchCodon">Patch Bound Codon</button>
+        <button id="btnStep">Stepping Stone</button>
+        <button id="btnClear">Clear Marks</button>
+        <button id="btnDownload">Download State</button>
+      </div>
+    </section>
+
+    <section class="summaryGrid">
+      <article>
+        <h2>Actual Page</h2>
+        <pre id="pageSummary">No capture yet.</pre>
+      </article>
+      <article>
+        <h2>Program Theory Seed</h2>
+        <pre id="theorySummary">Capture the page first. This is local and does not require an API key.</pre>
+      </article>
+    </section>
+
+    <section class="workbench">
+      <article class="deckPane">
+        <div class="paneHead">
+          <h2>Encoding Deck</h2>
+          <input id="filter" placeholder="filter codons…" />
+        </div>
+        <div id="encodingDeck" class="empty">Capture page to create selector-bound codons.</div>
+      </article>
+
+      <article class="boundPane">
+        <h2>Bound Codon Workbench</h2>
+        <pre id="boundCodon">Bind a codon. Then chat with only that contained unit.</pre>
+        <label for="codonChat">CODON-ONLY CHAT</label>
+        <textarea id="codonChat" spellcheck="false" placeholder="Example: make this like a video game, but only affect this codon and preserve its selector/function."></textarea>
+        <div class="actions">
+          <button id="btnChat">Chat · Mutate Codon</button>
+          <button id="btnToggle">Toggle EXON/INTRON</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="reportGrid">
+      <article>
+        <h2>Patch Report</h2>
+        <pre id="patchReport">No patch yet.</pre>
+      </article>
+      <article>
+        <div class="paneHead">
+          <h2>Console</h2>
+          <button id="btnClearConsole" class="small">Clear</button>
+        </div>
+        <div id="console" class="console"></div>
+      </article>
+    </section>
+
+    <details class="settings">
+      <summary>LLM Settings · optional</summary>
+      <div class="settingsGrid">
+        <label>Use LLM <input id="useLLM" type="checkbox" /></label>
+        <label>Provider<select id="provider"><option value="local">Local OpenAI-compatible</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="anthropic">Anthropic</option></select></label>
+        <label>Model<input id="model" /></label>
+        <label>Endpoint<input id="endpoint" /></label>
+        <label>API Key<input id="apiKey" type="password" placeholder="Only needed for cloud providers" /></label>
+      </div>
+      <label for="kernel">Prompt Kernel</label>
+      <textarea id="kernel" spellcheck="false"></textarea>
+      <div class="actions">
+        <button id="btnSaveConfig">Save Config</button>
+        <button id="btnTestModel">Test Model</button>
+      </div>
+      <p class="note">Default mode is local deterministic. No API key is required to capture, annotate, patch, or undo. Enable LLM only when you want model-assisted codon chat or planning.</p>
+    </details>
+  </main>
+  <script src="panel.js"></script>
+</body>
+</html>

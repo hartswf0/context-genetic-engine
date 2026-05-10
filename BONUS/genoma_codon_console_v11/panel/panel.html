@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENOMA Codon Console</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div class="brand"><img src="../icons/icon48.png" alt="" /><div><h1>GENOMA CODON CONSOLE</h1><p>LLM transcribes · codons bind · page mutates</p></div></div>
+      <div class="topActions"><button id="btnConfig" class="tiny">MODEL</button><button id="btnDebug" class="tiny">DEBUG</button></div>
+    </header>
+
+    <section id="modelGate" class="modelGate">
+      <b>MODEL REQUIRED</b>
+      <span id="modelLine">No model configured.</span>
+      <button id="btnOpenConfig" class="smallDark">Configure</button>
+    </section>
+
+    <section class="command">
+      <label for="directive">ONE INSTRUCTION</label>
+      <textarea id="directive" spellcheck="false">Make this page retrofuture and operational without losing content, links, forms, navigation, or functionality.</textarea>
+      <div class="mainButtons">
+        <button id="btnTranscribe" class="primary">TRANSCRIBE PAGE</button>
+        <button id="btnEvolve" class="primary">EVOLVE PAGE</button>
+      </div>
+      <div class="microButtons">
+        <button id="btnAnnotate">Annotate</button>
+        <button id="btnUndo">Undo</button>
+        <button id="btnDownload">Export</button>
+      </div>
+    </section>
+
+    <section class="operatingMap">
+      <div class="sectionHead"><h2>OPERATING MAP</h2><span id="mapMeta">No transcription yet.</span></div>
+      <div id="codonCards" class="codonCards empty">Transcribe the live page. The LLM will compress the page into 8–12 controllable codons.</div>
+    </section>
+
+    <section class="boundZone">
+      <div class="sectionHead"><h2>BOUND CODON</h2><span id="boundMeta">none</span></div>
+      <article id="boundCard" class="boundCard empty">Bind a codon from the operating map.</article>
+      <textarea id="codonChat" spellcheck="false" placeholder="Chat with this codon only. Example: make this feel like a video-game power-up, but preserve its function."></textarea>
+      <div class="mainButtons tight">
+        <button id="btnMutateCodon">MUTATE CODON</button>
+        <button id="btnPlanCodon">PATCH THIS CODON</button>
+      </div>
+    </section>
+
+    <section class="resultZone">
+      <div class="sectionHead"><h2>RESULT</h2><span id="resultMeta">no patch plan</span></div>
+      <div id="resultSummary" class="resultSummary">No plan yet.</div>
+      <div class="microButtons">
+        <button id="btnApplyPlan" class="apply" disabled>Apply Plan</button>
+        <button id="btnRejectPlan">Reject</button>
+        <button id="btnInspectJson">Inspect JSON</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="configDialog" class="modal">
+    <form method="dialog">
+      <header><h2>MODEL CONFIG</h2><button value="cancel" class="tiny">×</button></header>
+      <label>Provider<select id="provider"><option value="openai">OpenAI / compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="local">Local OpenAI-compatible</option></select></label>
+      <label>Model<input id="model" /></label>
+      <label>Endpoint<input id="endpoint" /></label>
+      <label>API key<input id="apiKey" type="password" placeholder="Cloud providers require a key. Local may be blank." /></label>
+      <label>Prompt Kernel<textarea id="kernel" spellcheck="false"></textarea></label>
+      <div class="mainButtons"><button id="btnSaveConfig" type="button">Save</button><button id="btnTestModel" type="button">Test Model</button></div>
+      <p class="note">No fake local mode. Meaning, encoding, mutation, and patch planning are model-driven.</p>
+    </form>
+  </dialog>
+
+  <dialog id="debugDialog" class="modal debugModal">
+    <form method="dialog">
+      <header><h2>DEBUG LOG</h2><button value="cancel" class="tiny">×</button></header>
+      <div id="debugLog" class="debugLog"></div>
+      <div class="mainButtons"><button id="btnClearDebug" type="button">Clear</button><button id="btnCopyDebug" type="button">Copy</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="jsonDialog" class="modal debugModal">
+    <form method="dialog">
+      <header><h2>RAW JSON</h2><button value="cancel" class="tiny">×</button></header>
+      <pre id="jsonView" class="jsonView"></pre>
+    </form>
+  </dialog>
+
+  <script src="panel.js"></script>
+</body>
+</html>

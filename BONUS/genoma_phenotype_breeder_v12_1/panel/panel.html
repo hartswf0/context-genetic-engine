@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENOMA Phenotype Breeder</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../icons/icon48.png" alt="" />
+        <div><h1>GENOMA PHENOTYPE BREEDER</h1><p>prompt genome · child UI · original/child/diff</p></div>
+      </div>
+      <div class="topActions"><button id="btnConfig" class="tiny">MODEL</button><button id="btnDebug" class="tiny">DEBUG</button></div>
+    </header>
+
+    <section id="statusBlock" class="statusBlock idle">
+      <div class="stateBig"><span class="stateLabel">STATE</span><b id="stateText">IDLE</b></div>
+      <div class="stateGrid">
+        <div><span>STEP</span><b id="stepText">0 / 5</b></div>
+        <div><span>MODEL</span><b id="modelText">not configured</b></div>
+        <div><span>ELAPSED</span><b id="elapsedText">00:00</b></div>
+      </div>
+      <div class="progressTrack"><div id="progressFill" class="progressFill"></div></div>
+      <div id="lastEvent" class="lastEvent">Configure a model, then encode the page into a prompt genome.</div>
+    </section>
+
+    <section class="commandBox">
+      <label for="directive">ONE INSTRUCTION</label>
+      <textarea id="directive" spellcheck="false">Make this page retrofuture and operational while preserving its content, links, forms, navigation, and identity.</textarea>
+      <div class="primaryRow">
+        <button id="btnEncode" class="primary">ENCODE PROMPT GENOME</button>
+        <button id="btnExpress" class="primary">EXPRESS CHILD UI</button>
+      </div>
+      <div class="viewRow">
+        <button id="btnOriginal">ORIGINAL</button>
+        <button id="btnChild">CHILD</button>
+        <button id="btnDiff">DIFF</button>
+        <button id="btnUndo">UNDO</button>
+      </div>
+    </section>
+
+    <section class="genomeShell">
+      <nav class="tabbar">
+        <button id="tabPrompt" class="tab active">PROMPT GENOME</button>
+        <button id="tabOperation" class="tab">OPERATION GENOME</button>
+        <button id="tabFitness" class="tab">FITNESS</button>
+      </nav>
+      <div id="tabMeta" class="tabMeta">Encode the live page. The prompt genome is the main artifact.</div>
+      <div id="genomeCards" class="genomeCards empty">No genome yet.</div>
+    </section>
+
+    <section class="boundShell">
+      <div class="sectionHead"><h2>BOUND CODON</h2><span id="boundMeta">none</span></div>
+      <article id="boundCard" class="boundCard empty">Bind a codon from the deck.</article>
+      <textarea id="codonChat" spellcheck="false" placeholder="Chat with this codon only. Mutation updates the visible prompt genome, not a bottom log."></textarea>
+      <div class="primaryRow compact">
+        <button id="btnMutateCodon">MUTATE CODON</button>
+        <button id="btnSelectNext">SELECT CHILD AS NEXT GEN</button>
+      </div>
+    </section>
+
+    <section class="resultShell">
+      <div class="sectionHead"><h2>CHILD PHENOTYPE</h2><span id="childMeta">no child expressed</span></div>
+      <div id="childSummary" class="childSummary">Express a child UI. It will render as a reversible overlay/sibling layer on the actual page.</div>
+      <div class="viewRow bottom wideResult">
+        <button id="btnReinstall">SHOW CHILD</button>
+        <button id="btnClearChild">CLEAR CHILD</button>
+        <button id="btnCopyPrompt">COPY PROMPT</button><button id="btnExport">EXPORT STATE</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="configDialog" class="modal">
+    <form method="dialog">
+      <header><h2>MODEL ROUTER</h2><button value="cancel" class="tiny">×</button></header>
+      <label>Provider<select id="provider"><option value="openai">OpenAI / compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="local">Local OpenAI-compatible</option></select></label>
+      <label>Endpoint<input id="endpoint" /></label>
+      <label>Reasoning model<input id="reasoningModel" placeholder="for encode + child expression" /></label>
+      <label>Fast model<input id="fastModel" placeholder="for codon mutation + summaries" /></label>
+      <label>API key<input id="apiKey" type="password" placeholder="Cloud providers require a key. Local may be blank." /></label>
+      <label>Prompt Kernel<textarea id="kernel" spellcheck="false"></textarea></label>
+      <div class="primaryRow"><button id="btnSaveConfig" type="button">Save</button><button id="btnTestReasoning" type="button">Test Reasoning</button></div>
+      <p class="note">Routing: reasoning model = page → prompt genome and child phenotype. Fast model = small codon mutations. For OpenAI reasoning models, this build uses the Responses API when available.</p>
+    </form>
+  </dialog>
+
+  <dialog id="debugDialog" class="modal debugModal">
+    <form method="dialog">
+      <header><h2>DEBUG LOG</h2><button value="cancel" class="tiny">×</button></header>
+      <div id="debugLog" class="debugLog"></div>
+      <div class="primaryRow"><button id="btnClearDebug" type="button">Clear</button><button id="btnCopyDebug" type="button">Copy</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="jsonDialog" class="modal debugModal">
+    <form method="dialog">
+      <header><h2>RAW STATE</h2><button value="cancel" class="tiny">×</button></header>
+      <pre id="jsonView" class="jsonView"></pre>
+    </form>
+  </dialog>
+
+  <script src="panel.js"></script>
+</body>
+</html>

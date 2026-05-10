@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GENOMA Prompt Genome Compiler</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../icons/icon48.png" alt="" />
+        <div>
+          <h1>GENOMA PROMPT GENOME COMPILER</h1>
+          <p>page evidence → prompt genome → program text</p>
+        </div>
+      </div>
+      <div class="topActions">
+        <button id="btnConfig" class="tiny">MODEL</button>
+        <button id="btnDebug" class="tiny">DEBUG</button>
+      </div>
+    </header>
+
+    <section id="statusBlock" class="statusBlock idle">
+      <div class="stateTop">
+        <span>STATE</span>
+        <b id="stateText">IDLE</b>
+      </div>
+      <div class="stateGrid">
+        <div><span>STEP</span><b id="stepText">0 / 4</b></div>
+        <div><span>MODEL</span><b id="modelText">not configured</b></div>
+        <div><span>ELAPSED</span><b id="elapsedText">00:00</b></div>
+      </div>
+      <div class="progressTrack"><div id="progressFill"></div></div>
+      <div id="lastEvent" class="lastEvent">Configure model. Encode the page into a prompt genome. Compile the genome into program text.</div>
+    </section>
+
+    <section class="commandBox">
+      <label for="directive">ONE INSTRUCTION</label>
+      <textarea id="directive" spellcheck="false">Make this page retrofuture and operational while preserving its content, links, forms, navigation, and identity. Make the program text feel like an oldschool film-strip operations console.</textarea>
+      <div class="buttonGrid mainActions">
+        <button id="btnEncode" class="primary">1 · ENCODE PROMPT GENOME</button>
+        <button id="btnCompile" class="primary">2 · COMPILE PROGRAM TEXT</button>
+      </div>
+      <div class="buttonGrid secondaryActions">
+        <button id="btnOpenArtifact" class="hot">OPEN ARTIFACT PAGE</button>
+        <button id="btnCopyPrompt">COPY PROMPT</button>
+        <button id="btnCopyCode">COPY HTML</button>
+        <button id="btnExport">EXPORT</button>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <nav class="modeTabs">
+        <button id="tabPrompt" class="active">PROMPT GENOME</button>
+        <button id="tabProgram">PROGRAM TEXT</button>
+        <button id="tabSystems">SYSTEMS</button>
+      </nav>
+
+      <section id="promptPane" class="pane active">
+        <div class="paneHead"><h2>PROMPT GENOME</h2><span id="promptMeta">not encoded</span></div>
+        <div id="promptCards" class="cards empty">Press ENCODE PROMPT GENOME.</div>
+      </section>
+
+      <section id="programPane" class="pane">
+        <div class="paneHead"><h2>PROGRAM TEXT / CODE ARTIFACT</h2><span id="programMeta">not compiled</span></div>
+        <div id="programSummary" class="programSummary">The prompt genome will compile into a standalone child UI artifact. It opens in its own page.</div>
+        <div id="programPreviewWrap" class="programPreviewWrap hidden">
+          <div class="previewHead">LIVE PREVIEW</div>
+          <iframe id="programPreview" sandbox="allow-popups allow-forms"></iframe>
+        </div>
+      </section>
+
+      <section id="systemsPane" class="pane">
+        <div class="paneHead"><h2>OPERATION CODE GENOME</h2><span id="systemsMeta">hidden until needed</span></div>
+        <div id="systemCards" class="cards empty">Operation systems appear after encoding. They stay secondary.</div>
+      </section>
+    </section>
+
+    <section class="boundShell">
+      <div class="paneHead"><h2>BOUND CODON</h2><span id="boundMeta">none</span></div>
+      <article id="boundCard" class="boundCard empty">Click a prompt codon. Mutations update the prompt genome, then recompile the program text.</article>
+      <textarea id="codonChat" spellcheck="false" placeholder="Mutate only this codon. Example: make the style system more like a film-strip chopping console, but preserve source fidelity."></textarea>
+      <div class="buttonGrid boundActions">
+        <button id="btnMutateCodon">MUTATE CODON</button>
+        <button id="btnSelectNext">SELECT ARTIFACT AS NEXT GEN</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="configDialog" class="modal">
+    <form method="dialog">
+      <header><h2>MODEL ROUTER</h2><button value="cancel" class="tiny">×</button></header>
+      <label>Provider<select id="provider"><option value="openai">OpenAI / compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="local">Local OpenAI-compatible</option></select></label>
+      <label>Endpoint<input id="endpoint" /></label>
+      <label>Reasoning model<input id="reasoningModel" placeholder="encode + compile" /></label>
+      <label>Fast model<input id="fastModel" placeholder="codon mutation" /></label>
+      <label>API key<input id="apiKey" type="password" placeholder="Cloud providers require a key. Local may be blank." /></label>
+      <label>Prompt Kernel<textarea id="kernel" spellcheck="false"></textarea></label>
+      <div class="buttonGrid"><button id="btnSaveConfig" type="button">SAVE</button><button id="btnTestReasoning" type="button">TEST</button></div>
+      <p class="note">Use reasoning for page → prompt genome and prompt genome → program text. Use fast for single-codon mutation.</p>
+    </form>
+  </dialog>
+
+  <dialog id="debugDialog" class="modal debugModal">
+    <form method="dialog">
+      <header><h2>DEBUG LOG</h2><button value="cancel" class="tiny">×</button></header>
+      <div id="debugLog" class="debugLog"></div>
+      <div class="buttonGrid"><button id="btnClearDebug" type="button">CLEAR</button><button id="btnCopyDebug" type="button">COPY</button></div>
+    </form>
+  </dialog>
+
+  <script src="panel.js"></script>
+</body>
+</html>

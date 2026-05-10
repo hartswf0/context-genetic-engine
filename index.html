@@ -222,6 +222,34 @@
       text-transform: none;
     }
 
+    .mobile-note {
+      margin: 18px 0 14px;
+      border: var(--line) solid var(--black);
+      padding: 12px;
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 850;
+      text-transform: none;
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      border: var(--thin) solid currentColor;
+      padding: 3px 5px;
+      font-size: 9px;
+      line-height: 1;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
     .links {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -377,6 +405,10 @@
       .links a:last-child,
       .links button:last-child {
         border-bottom: 0;
+      }
+
+      .mobile-note {
+        font-size: 10px;
       }
     }
   </style>
@@ -548,6 +580,160 @@
             </div>
           </article>
         </div>
+
+        <section id="extensions" aria-label="GENOMA extension builds">
+          <div class="section-head" style="margin-top:18px;">
+            <h2>Extensions</h2>
+            <p>Desktop Chrome/Edge can load these as unpacked extensions. Phones can use the readable panel previews, artifact pages, and program theory.</p>
+          </div>
+
+          <div class="mobile-note">
+            Mobile rule: phone browsers do not load unpacked Chrome extensions. Use these links on mobile as documentation, panel previews, and artifact previews; use desktop Chrome or Edge for the actual side-panel tools.
+          </div>
+
+          <div class="grid">
+            <article class="card primary">
+              <div class="card-top">
+                <div class="code">EXT</div>
+                <div class="title">
+                  <h3>GENOMA Prompt Genetics</h3>
+                  <span>Current extension · capture / cross / select</span>
+                  <div class="badge-row">
+                    <span class="badge">RSN</span><span class="badge">EVD</span><span class="badge">OUT</span><span class="badge">FIT</span><span class="badge">MUT</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Main extension build. Encodes a live page into prompt codons, maps the active genome back onto the page, breeds saved genomes, and selects offspring.</div>
+              <div class="links">
+                <a href="chrome-genetics-extension-v3/panel/panel.html">Panel Preview</a>
+                <a href="chrome-genetics-extension-v3/README.md">Install Notes</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">V10</div>
+                <div class="title">
+                  <h3>Actual Page Mutator</h3>
+                  <span>selector-bound safe patching</span>
+                  <div class="badge-row">
+                    <span class="badge">ENT</span><span class="badge">TXT</span><span class="badge">ACT</span><span class="badge">INV</span><span class="badge">STY</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Local-first codons from anchored page elements. Best for thinking about reversible patches without requiring an API key.</div>
+              <div class="links">
+                <a href="BONUS/genoma_actual_page_mutator_v10/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_actual_page_mutator_v10/manifest.json">Manifest</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">V11</div>
+                <div class="title">
+                  <h3>Codon Console</h3>
+                  <span>LLM operating map</span>
+                  <div class="badge-row">
+                    <span class="badge">MAP</span><span class="badge">BIND</span><span class="badge">PATCH</span><span class="badge">UNDO</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">LLM-first console that compresses the page into 8-12 operating codons and plans selector-bound patches.</div>
+              <div class="links">
+                <a href="BONUS/genoma_codon_console_v11/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_codon_console_v11/README_DEVELOPER_TOOL.md">Theory</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">V12</div>
+                <div class="title">
+                  <h3>Phenotype Breeder</h3>
+                  <span>original / child / diff</span>
+                  <div class="badge-row">
+                    <span class="badge">RSN</span><span class="badge">EVD</span><span class="badge">STY</span><span class="badge">MUT</span><span class="badge">SEL</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Treats the current page as F0 baseline and expresses child UI phenotypes as reversible overlays.</div>
+              <div class="links">
+                <a href="BONUS/genoma_phenotype_breeder_v12/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_phenotype_breeder_v12/README_DEVELOPER_TOOL.md">Theory</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">12.1</div>
+                <div class="title">
+                  <h3>Phenotype Breeder 12.1</h3>
+                  <span>reasoning-route variant</span>
+                  <div class="badge-row">
+                    <span class="badge">F0</span><span class="badge">CHILD</span><span class="badge">DIFF</span><span class="badge">NEXT</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Updated breeder variant with the same prompt-genome/child-phenotype loop and next-generation selection.</div>
+              <div class="links">
+                <a href="BONUS/genoma_phenotype_breeder_v12_1/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_phenotype_breeder_v12_1/README_DEVELOPER_TOOL.md">Theory</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">V13</div>
+                <div class="title">
+                  <h3>Prompt Genome Compiler</h3>
+                  <span>program text artifact</span>
+                  <div class="badge-row">
+                    <span class="badge">PROMPT</span><span class="badge">OPS</span><span class="badge">CODE</span><span class="badge">NEXT</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">Compiles a prompt genome into standalone program text instead of patching the live page.</div>
+              <div class="links">
+                <a href="BONUS/genoma_prompt_genome_compiler_v13/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_prompt_genome_compiler_v13/artifact/artifact.html">Artifact</a>
+              </div>
+            </article>
+
+            <article class="card primary">
+              <div class="card-top">
+                <div class="code">V14</div>
+                <div class="title">
+                  <h3>Prompt Genome Compiler 14</h3>
+                  <span>filmable compiler surface</span>
+                  <div class="badge-row">
+                    <span class="badge">F0</span><span class="badge">GENOME</span><span class="badge">PROGRAM</span><span class="badge">ARTIFACT</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">The strongest mobile-readable bonus: capture F0 evidence, encode prompt genome, compile substantial standalone HTML/CSS artifacts.</div>
+              <div class="links">
+                <a href="BONUS/genoma_prompt_genome_compiler_v14/panel/panel.html">Panel</a>
+                <a href="BONUS/genoma_prompt_genome_compiler_v14/artifact/artifact.html">Artifact</a>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-top">
+                <div class="code">DOC</div>
+                <div class="title">
+                  <h3>Extension Program Theory</h3>
+                  <span>codon assessment</span>
+                </div>
+              </div>
+              <div class="card-body">A separate theory ledger for the extension family: purpose, codons, mobile stance, failure modes, and which build to use.</div>
+              <div class="links">
+                <a href="GENOMA_EXTENSION_PROGRAM_THEORY.md">Open Theory</a>
+                <a href="#extensions">Back Here</a>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section class="preview" aria-label="Desktop preview">
           <div class="preview-head">
