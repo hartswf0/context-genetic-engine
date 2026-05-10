@@ -136,7 +136,7 @@ const PROVIDER_DEFAULTS = {
   },
   openai: {
     endpoint: 'https://api.openai.com/v1/responses',
-    model: 'gpt-5.5',
+    model: 'gpt-5.1',
     keyPlaceholder: 'OpenAI API key'
   },
   anthropic: {

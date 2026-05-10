@@ -29,7 +29,7 @@ saved genomes -> lineage vault -> parent selection -> Punnett cross -> expressed
 ## Provider Setup
 
 - `Gemini`: endpoint `https://generativelanguage.googleapis.com/v1beta/models`, model `gemini-2.5-flash`.
-- `OpenAI Reasoning`: endpoint `https://api.openai.com/v1/responses`, model `gpt-5.5`, configurable reasoning effort.
+- `OpenAI Reasoning`: endpoint `https://api.openai.com/v1/responses`, model `gpt-5.1`, configurable reasoning effort.
 - `Anthropic`: endpoint `https://api.anthropic.com/v1/messages`, model `claude-sonnet-4-20250514`.
 - `Local Llama`: endpoint `http://localhost:11434/v1/chat/completions`, model `llama3.1`, no key required.
 
