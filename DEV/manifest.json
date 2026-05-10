@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Context Genetics Engine",
+  "version": "0.1.0",
+  "description": "A side-panel harness for compiling context, prompt codons, and active browser pages into generative UI artifacts.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Context Genetics Engine"
+  },
+  "side_panel": {
+    "default_path": "GENOMA_CONTEXT.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}

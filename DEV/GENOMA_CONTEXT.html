@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context Genetics Engine</title>
+  <style>
+    :root {
+      --bg: #050505;
+      --panel: #101010;
+      --panel-2: #171717;
+      --line: #343434;
+      --text: #f7f7f7;
+      --muted: #a3a3a3;
+      --blue: #60a5fa;
+      --green: #4ade80;
+      --red: #f87171;
+      --violet: #c084fc;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.45;
+      overflow: hidden;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    button:hover { background: #202020; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #000;
+      color: var(--text);
+      border-radius: 6px;
+      outline: none;
+      padding: 10px;
+    }
+
+    textarea {
+      min-height: 116px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      text-transform: none;
+    }
+
+    ::placeholder { color: #767676; }
+
+    .app {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .player {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+
+    .art {
+      display: grid;
+      place-items: center;
+      border-right: 1px solid var(--line);
+      background: #000;
+    }
+
+    .mark {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 3px;
+    }
+
+    .mark span { border: 2px solid var(--text); }
+    .mark span:nth-child(2) { border-color: var(--blue); }
+    .mark span:nth-child(3) { border-color: var(--green); }
+
+    .deck {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .deck-top {
+      display: grid;
+      grid-template-columns: minmax(86px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .state {
+      min-width: 0;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-weight: 800;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .state.success { color: var(--green); }
+    .state.danger { color: var(--red); }
+
+    .top-actions,
+    .api-row,
+    .actions,
+    .artifact-actions {
+      display: flex;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .top-tool,
+    .mini {
+      min-height: 30px;
+      padding: 0 9px;
+      font-size: 0.66rem;
+    }
+
+    .api-row {
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: #080808;
+    }
+
+    .api-row input {
+      min-height: 32px;
+      padding: 6px 8px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .chamber-wrapper {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chamber-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      border: 0;
+      border-radius: 0;
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    .now {
+      height: 96px;
+      overflow: auto;
+      padding: 9px 10px;
+      background: #000;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      transition: height 160ms ease, padding 160ms ease;
+    }
+
+    .now.collapsed {
+      height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+
+    .log-sys { color: var(--blue); font-weight: 800; }
+    .log-step { color: var(--text); }
+    .log-succ { color: var(--green); font-weight: 800; }
+    .log-err { color: var(--red); font-weight: 800; }
+
+    .transport {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px;
+      background: var(--panel);
+    }
+
+    .beat-pill {
+      min-height: 28px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      font-family: var(--mono);
+      color: var(--green);
+    }
+
+    .beat-pill.intron {
+      color: var(--muted);
+      border-style: dashed;
+      opacity: 0.65;
+    }
+
+    .workspace {
+      flex: 1;
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      background: #000;
+    }
+
+    .column {
+      width: min(100vw, 520px);
+      min-width: min(100vw, 520px);
+      flex: 0 0 min(100vw, 520px);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--line);
+      background: var(--bg);
+      scroll-snap-align: start;
+      position: relative;
+    }
+
+    .column-header {
+      min-height: 58px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex: 0 0 auto;
+    }
+
+    .column-name {
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .column-subtitle {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .column-badge {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-weight: 900;
+    }
+
+    .column-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .column-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .column-footer {
+      padding: 10px;
+      border-top: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .toolbar {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .toolbar-title {
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .unified-wrap {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ingest-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+    }
+
+    .unified-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .img-preview-rail {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      min-height: 0;
+    }
+
+    .codon-image-rail {
+      padding-bottom: 4px;
+    }
+
+    .img-thumb {
+      width: 54px;
+      height: 54px;
+      flex: 0 0 54px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .img-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .img-kill {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      min-height: 20px;
+      width: 20px;
+      padding: 0;
+      border-color: var(--red);
+      color: var(--red);
+      background: #000;
+    }
+
+    .loci-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .loci-btn {
+      min-height: 74px;
+      align-items: flex-start;
+      justify-content: center;
+      flex-direction: column;
+      display: flex;
+      text-align: left;
+      text-transform: none;
+      letter-spacing: 0;
+      gap: 3px;
+    }
+
+    .loci-title {
+      font-family: var(--mono);
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .tone-blue { color: var(--blue); }
+    .tone-green { color: var(--green); }
+    .tone-red { color: var(--red); }
+    .tone-violet { color: var(--violet); }
+
+    .loci-desc {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+
+    .btn {
+      width: 100%;
+      min-height: 44px;
+    }
+
+    .btn,
+    .mini {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .btn.primary {
+      background: var(--text);
+      color: #000;
+      border-color: var(--text);
+    }
+
+    .btn.action,
+    .mini.action {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .btn.danger,
+    .mini.danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .actions.two { display: grid; grid-template-columns: 1fr 1fr; }
+    .actions.three { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+
+    .col-help-btn {
+      min-height: 32px;
+      width: 32px;
+      padding: 0;
+      border-radius: 50%;
+      color: var(--blue);
+    }
+
+    .slot-row {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .slot-num {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding-top: 8px;
+    }
+
+    .unit {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+
+    .unit.intron {
+      border-style: dashed;
+      opacity: 0.62;
+    }
+
+    .unit-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .unit-id {
+      font-family: var(--mono);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .locus-rsn { color: var(--blue); }
+    .locus-evd { color: var(--green); }
+    .locus-flr { color: var(--red); }
+    .locus-fit { color: var(--violet); }
+    .locus-generic { color: var(--text); }
+
+    .unit-ops,
+    .codon-tools-row {
+      display: flex;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .unit-payload {
+      border: 0;
+      border-radius: 0;
+      min-height: 92px;
+      background: #000;
+    }
+
+    .codon-tools {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+    }
+
+    .codon-ai-input {
+      min-height: 34px;
+      padding: 6px 8px;
+      font-size: 0.72rem;
+    }
+
+    .codon-img-label {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .pheno-box {
+      min-height: 360px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #000;
+      overflow: hidden;
+      white-space: pre-wrap;
+      text-transform: none;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+
+    #pheno-text,
+    #pheno-prompt {
+      padding: 14px;
+      overflow: auto;
+      min-height: 360px;
+    }
+
+    #pheno-frame,
+    #artifact-max-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    .artifact-modal-content {
+      max-width: 96vw;
+      height: 94dvh;
+    }
+
+    .artifact-frame-body {
+      flex: 1;
+      min-height: 0;
+      padding: 0;
+      background: #fff;
+    }
+
+    .empty-state {
+      display: grid;
+      gap: 8px;
+      place-items: center;
+      min-height: 260px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 99;
+    }
+
+    .modal.active { display: flex; }
+
+    .modal-content {
+      width: min(920px, 100%);
+      max-height: 92dvh;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .modal-body {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .punnett-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .punnett-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #000;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .p-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 900;
+    }
+
+    .p-body {
+      padding: 10px;
+      white-space: pre-wrap;
+      text-transform: none;
+      font-size: 0.78rem;
+    }
+
+    .export-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .export-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .export-box-title {
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .export-box-content {
+      min-height: 160px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      text-transform: none;
+    }
+
+    .export-exon { color: var(--green); }
+    .export-intron { color: var(--muted); }
+    .danger-text { color: var(--red); font-weight: 900; }
+
+    .panel-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 8;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .dna-loader {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .dna-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--blue);
+      animation: pulse 800ms infinite alternate;
+    }
+
+    .dna-dot:nth-child(2) { animation-delay: 120ms; }
+    .dna-dot:nth-child(3) { animation-delay: 240ms; }
+
+    @keyframes pulse {
+      from { opacity: 0.35; transform: translateY(0); }
+      to { opacity: 1; transform: translateY(-5px); }
+    }
+
+    .is-hidden { display: none; }
+
+    @media (max-width: 560px) {
+      .deck-top {
+        grid-template-columns: 1fr;
+      }
+
+      .top-actions,
+      .api-row,
+      .artifact-actions {
+        flex-wrap: wrap;
+      }
+
+      .api-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+      }
+
+      .export-grid,
+      .actions.two,
+      .actions.three,
+      .loci-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .column,
+      .workspace {
+        scroll-snap-type: x mandatory;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="player">
+      <button class="art modal-trigger" data-modal="help-modal" title="Open help">
+        <span class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      </button>
+      <div class="deck">
+        <div class="deck-top">
+          <span class="state" id="storage-status">SYS: READY</span>
+          <div class="top-actions">
+            <button class="top-tool" id="btn-undo" disabled>Undo</button>
+            <button class="top-tool modal-trigger" data-modal="help-modal">Help</button>
+            <button class="top-tool" id="btn-import">Import</button>
+            <button class="top-tool" id="btn-export">Export</button>
+          </div>
+        </div>
+        <div class="api-row">
+          <input id="gemini-api-key" type="password" autocomplete="off" placeholder="Gemini API key">
+          <button class="top-tool" id="btn-save-api-key">Save</button>
+        </div>
+        <div class="chamber-wrapper">
+          <button class="chamber-header" id="btn-toggle-chamber">
+            <span>Trace Console</span>
+            <span id="chamber-toggle-icon">SHOW</span>
+          </button>
+          <div class="now collapsed" id="chamber">
+            <div class="log-sys">Context Genetics Engine loaded.</div>
+            <div class="log-step">Build a genome, paste a task, or leave the task empty to read the active tab.</div>
+          </div>
+        </div>
+        <div class="transport" id="genome-dots"></div>
+      </div>
+    </section>
+
+    <section class="workspace" id="workspace">
+      <section class="column" data-column="palette">
+        <header class="column-header">
+          <div>
+            <div class="column-name">Context</div>
+            <div class="column-subtitle">Source material and generation target</div>
+          </div>
+          <div class="actions">
+            <button class="col-help-btn btn-col-help" data-col="palette" title="Context help">?</button>
+            <div class="column-badge">01</div>
+          </div>
+        </header>
+
+        <div class="column-content" id="panel-upstream">
+          <div class="column-scroll">
+            <div class="toolbar">
+              <div class="toolbar-title">Generation Target</div>
+              <div class="unified-wrap">
+                <div class="ingest-row">
+                  <input type="text" id="url-ingest-ai-input" placeholder="Paste URL or GitHub file">
+                  <button class="mini action" id="btn-ingest-ai">Ingest</button>
+                </div>
+                <textarea id="ai-prompt" class="unified-textarea autogrow" placeholder="Describe what the prompt genome should accomplish."></textarea>
+                <div class="unified-foot">
+                  <div class="img-preview-rail" id="synthesis-img-preview"></div>
+                  <label class="mini">Add Image
+                    <input class="is-hidden" type="file" id="synthesis-img-upload" accept="image/*" multiple>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <div class="toolbar-title">Manual Codons</div>
+              <div class="loci-grid">
+                <button class="loci-btn btn-add-codon" data-type="RSN" data-payload="Construct theory before output.">
+                  <span class="loci-title tone-blue">Reasoning</span>
+                  <span class="loci-desc">Order the work.</span>
+                </button>
+                <button class="loci-btn btn-add-codon" data-type="EVD" data-payload="Use only provided source material.">
+                  <span class="loci-title tone-green">Evidence</span>
+                  <span class="loci-desc">Bind claims to context.</span>
+                </button>
+                <button class="loci-btn btn-add-codon" data-type="OUT" data-payload="Return a structured, usable artifact.">
+                  <span class="loci-title">Output</span>
+                  <span class="loci-desc">Control the artifact.</span>
+                </button>
+                <button class="loci-btn btn-add-codon" data-type="FLR" data-payload="If blocked, state the missing condition and produce the closest safe fallback.">
+                  <span class="loci-title tone-red">Failure</span>
+                  <span class="loci-desc">Define recovery.</span>
+                </button>
+                <button class="loci-btn btn-add-codon" data-type="FIT" data-payload="Optimize for source fidelity, clarity, and direct utility.">
+                  <span class="loci-title tone-violet">Fitness</span>
+                  <span class="loci-desc">Set the scoring pressure.</span>
+                </button>
+                <button class="loci-btn btn-add-codon" data-type="CST" data-payload="">
+                  <span class="loci-title">Custom</span>
+                  <span class="loci-desc">Add a project rule.</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="column-footer">
+            <button class="btn primary" id="btn-generate">Synthesize Genome</button>
+            <div class="actions three">
+              <button class="btn" id="btn-mutate">Mutate</button>
+              <button class="btn action" id="btn-punnett">Breed</button>
+              <button class="btn danger" id="btn-stepping-stone">Diverge</button>
+            </div>
+            <button class="btn btn-scroll-to" data-target="genotype">Go To Genome</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="column" data-column="genotype">
+        <header class="column-header">
+          <div>
+            <div class="column-name">Genome</div>
+            <div class="column-subtitle">Ordered prompt instructions</div>
+          </div>
+          <div class="actions">
+            <button class="col-help-btn btn-col-help" data-col="genotype" title="Genome help">?</button>
+            <div class="column-badge" id="col-geno-badge">00</div>
+          </div>
+        </header>
+
+        <div class="column-content" id="panel-genotype">
+          <div class="column-scroll" id="genome-container"></div>
+          <div class="column-footer">
+            <div class="actions two">
+              <button class="btn btn-scroll-to" data-target="field">Go To Output</button>
+              <button class="btn danger" id="btn-purge-genome">Purge</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="column" data-column="field">
+        <header class="column-header">
+          <div>
+            <div class="column-name">Output</div>
+            <div class="column-subtitle">Task context and rendered artifact</div>
+          </div>
+          <div class="actions">
+            <button class="col-help-btn btn-col-help" data-col="field" title="Output help">?</button>
+            <div class="column-badge">03</div>
+          </div>
+        </header>
+
+        <div class="column-content" id="panel-phenotype">
+          <div class="column-scroll">
+            <div class="toolbar">
+              <div class="toolbar-title">Target Task</div>
+              <div class="unified-wrap">
+                <div class="ingest-row">
+                  <input type="text" id="url-ingest-task-input" placeholder="Paste URL or GitHub file">
+                  <button class="mini action" id="btn-ingest-task">Ingest</button>
+                </div>
+                <textarea id="target-task" class="unified-textarea autogrow" placeholder="Paste the task, source material, or leave empty to read the active tab."></textarea>
+                <div class="unified-foot">
+                  <div class="img-preview-rail" id="task-img-preview"></div>
+                  <label class="mini">Add Image
+                    <input class="is-hidden" type="file" id="task-img-upload" accept="image/*" multiple>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <div class="toolbar-title artifact-actions">
+                <span>Artifact</span>
+                <span class="artifact-actions">
+                  <button class="mini action" id="btn-dl-bundle">Bundle</button>
+                  <button class="mini" id="btn-toggle-prompt">Trace</button>
+                  <button class="mini action" id="btn-toggle-view">Render</button>
+                  <button class="mini" id="btn-copy-artifact">Copy</button>
+                  <button class="mini" id="btn-dl-artifact">DL</button>
+                  <button class="mini" id="btn-max-artifact">Max</button>
+                </span>
+              </div>
+              <div class="pheno-box" id="phenotype-output">
+                <div id="pheno-text">
+                  <div class="empty-state">
+                    <strong>Ready</strong>
+                    <span>Build or edit the genome, add target context, then express the artifact.</span>
+                  </div>
+                </div>
+                <iframe id="pheno-frame" sandbox="allow-scripts allow-forms allow-modals" class="is-hidden"></iframe>
+                <div id="pheno-prompt" class="is-hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="column-footer">
+            <button class="btn primary" id="btn-express">Express Phenotype</button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="punnett-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="punnett-modal-title">Matrix</span>
+        <button class="mini modal-close" data-modal="punnett-modal">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="punnett-grid" id="punnett-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="inspect-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>Export Review</span>
+        <button class="mini modal-close" data-modal="inspect-modal">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="export-grid">
+          <div class="export-box">
+            <div class="export-box-title">Genome</div>
+            <div class="export-box-content" id="export-genome-preview"></div>
+          </div>
+          <div class="export-box">
+            <div class="export-box-title">Environment</div>
+            <div class="export-box-content" id="export-env-preview"></div>
+          </div>
+        </div>
+        <textarea id="inspect-json" class="unified-textarea" readonly></textarea>
+        <button class="btn primary" id="btn-commit-export">Download JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="help-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>How This Works</span>
+        <button class="mini modal-close" data-modal="help-modal">Close</button>
+      </div>
+      <div class="modal-body">
+        <p>Context holds source material. Genome holds ordered prompt instructions. Output applies the genome to a target task or the current browser tab.</p>
+        <div class="actions three">
+          <button class="btn btn-scroll-to modal-close" data-modal="help-modal" data-target="palette">Context</button>
+          <button class="btn btn-scroll-to modal-close" data-modal="help-modal" data-target="genotype">Genome</button>
+          <button class="btn btn-scroll-to modal-close" data-modal="help-modal" data-target="field">Output</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="col-help-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="col-help-title">Help</span>
+        <button class="mini modal-close" data-modal="col-help-modal">Close</button>
+      </div>
+      <div class="modal-body" id="col-help-body"></div>
+    </div>
+  </div>
+
+  <div id="artifact-modal" class="modal">
+    <div class="modal-content artifact-modal-content">
+      <div class="modal-header">
+        <span>Rendered Artifact</span>
+        <button class="mini modal-close" data-modal="artifact-modal">Close</button>
+      </div>
+      <div class="modal-body artifact-frame-body">
+        <iframe id="artifact-max-frame" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="import-file" accept=".json" class="is-hidden">
+  <script src="app.js"></script>
+</body>
+</html>
