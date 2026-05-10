@@ -28,12 +28,14 @@ let phenotypeBlobUrl = '';
 let fieldBlobUrl = '';
 let imageEvidence = [];         // User supplied image files as field evidence
 let overlayActive = false;      // Whether the DOM annotation overlay is on
+let activeEncoderMode = 'g1';    // g1 prompt genome, f4 operational genome, phub lineage genome, hybrid pipeline
 let apiKey = '';                // Backwards-compatible shortcut for modelConfig.apiKey
 let modelConfig = {
   provider: 'gemini',
   apiKey: '',
   endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
-  model: 'gemini-2.5-flash'
+  model: 'gemini-2.5-flash',
+  reasoningEffort: 'high'
 };
 
 // ─── LOCUS CONFIG ─────────────────────────────────────────────────────────────
@@ -43,12 +45,19 @@ const LOCUS_COLORS = {
   COPY: '#1cb0c6', RADIUS: '#fb923c',
   RSN: '#60a5fa', EVD: '#4ade80', OUT: '#f0f0f0',
   STY: '#a78bfa', FLR: '#f87171', FIT: '#c084fc',
-  MUT: '#f472b6', SEL: '#fbbf24', CST: '#e5e7eb', CMT: '#888'
+  MUT: '#f472b6', SEL: '#fbbf24', CST: '#e5e7eb', CMT: '#888',
+  ENT: '#60a5fa', MOR: '#4ade80', ENV: '#fbbf24', TRC: '#1cb0c6'
 };
 
 const PROMPT_LOCI = ['RSN', 'EVD', 'OUT', 'FLR', 'FIT', 'CST', 'CMT'];
+const F4_LOCI = ['ENT', 'MOR', 'CST', 'ENV', 'FIT', 'TRC'];
+const PHUB_LOCI = ['RSN', 'EVD', 'STY', 'FLR', 'MUT', 'SEL'];
 
-const GENOTYPE_TRANSCRIPTION_PROMPT = `TRANSCRIBE GENOTYPE.
+const ENCODER_MODES = {
+  g1: {
+    label: 'g1 Prompt Genome',
+    loci: PROMPT_LOCI,
+    systemPrompt: `TRANSCRIBE G1 PROMPT GENOME.
 Read the Environmental Medium as source material, not as the final genotype.
 Extract compact, token-dense operational prompt codons mapped only to these loci:
 1. RSN: Reasoning Order
@@ -66,7 +75,58 @@ Rules:
 - Attach a practical selector to each codon when a selector exists in rankedSelectors or components.
 - Avoid vague words such as beautiful, nice, improve, modern unless tied to an observable constraint.
 - Weight must be 0-100.
-Output JSON only: an array of objects with { "type": "RSN|EVD|OUT|FLR|FIT|CST", "payload": "specific instruction text", "selector": "CSS selector or empty string", "state": "EXON", "weight": integer }.`;
+Output JSON only: an array of objects with { "type": "RSN|EVD|OUT|FLR|FIT|CST", "payload": "specific instruction text", "selector": "CSS selector or empty string", "state": "EXON", "weight": integer }.`
+  },
+  f4: {
+    label: 'f4 Operational Genome',
+    loci: F4_LOCI,
+    systemPrompt: `TRANSCRIBE F4 OPERATIONAL GENOME.
+Read the Evidence Packet and encode the source into operational units:
+ENT: entities, actors, objects, UI primitives, data things.
+MOR: morphisms, transformations, actions, flows, behaviors.
+CST: constraints, rules, limits, accessibility, security, layout bounds.
+ENV: environments, contexts, surfaces, routes, viewports, runtime conditions.
+FIT: fitness tests, success metrics, quality pressures.
+TRC: traces, origins, selectors, source anchors, observed values.
+Rules:
+- Output dense operational statements, not summaries.
+- Attach selectors to ENT/MOR/TRC units when possible.
+- Preserve concrete page evidence and uncertainty.
+- Weight must be 0-100.
+Output JSON only: an array of objects with { "type": "ENT|MOR|CST|ENV|FIT|TRC", "payload": "specific operational unit", "selector": "CSS selector or empty string", "state": "EXON", "weight": integer }.`
+  },
+  phub: {
+    label: 'phub Breeding Genome',
+    loci: PHUB_LOCI,
+    systemPrompt: `TRANSCRIBE PHUB LINEAGE GENOME.
+Read the Evidence Packet as a breeding chamber inside the context window.
+Encode into:
+RSN: reasoning order.
+EVD: evidence policy.
+STY: structure style / output topography.
+FLR: failure handling.
+MUT: mutation pressure / variation operator.
+SEL: selection pressure / dominance rule.
+Rules:
+- Every codon must function as an inheritable prompt trait.
+- Include selectors only as traces for visible leverage points.
+- Produce traits useful for recombination, mutation, and fitness assay.
+- Weight must be 0-100.
+Output JSON only: an array of objects with { "type": "RSN|EVD|STY|FLR|MUT|SEL", "payload": "inheritable prompt trait", "selector": "CSS selector or empty string", "state": "EXON", "weight": integer }.`
+  },
+  hybrid: {
+    label: 'Hybrid f4 -> g1',
+    loci: ['ENT', 'MOR', 'CST', 'ENV', 'FIT', 'TRC', 'RSN', 'EVD', 'OUT', 'FLR'],
+    systemPrompt: `TRANSCRIBE HYBRID CONTEXT GENOME.
+First encode source essence as F4 units (ENT/MOR/CST/ENV/FIT/TRC). Then synthesize those into G1 prompt control codons (RSN/EVD/OUT/FLR/FIT/CST).
+Rules:
+- Preserve the F4 stepping stone; do not jump straight to vague prompt advice.
+- G1 codons must cite or rely on F4 units.
+- Attach selectors to codons that can target visible leverage points.
+- Weight must be 0-100.
+Output JSON only: an array of objects with { "type": "ENT|MOR|CST|ENV|FIT|TRC|RSN|EVD|OUT|FLR", "payload": "dense operational trait", "selector": "CSS selector or empty string", "state": "EXON", "weight": integer }.`
+  }
+};
 
 const PROVIDER_DEFAULTS = {
   gemini: {
@@ -75,8 +135,8 @@ const PROVIDER_DEFAULTS = {
     keyPlaceholder: 'Gemini API key'
   },
   openai: {
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini',
+    endpoint: 'https://api.openai.com/v1/responses',
+    model: 'gpt-5.5',
     keyPlaceholder: 'OpenAI API key'
   },
   anthropic: {
@@ -130,11 +190,13 @@ function bindUI() {
   document.getElementById('btn-export-lineage')?.addEventListener('click', exportAllLineage);
   document.getElementById('btn-clear-lineage')?.addEventListener('click', clearAllLineage);
   document.getElementById('provider-select')?.addEventListener('change', updateProviderDefaults);
+  document.getElementById('encoder-mode-select')?.addEventListener('change', updateEncoderMode);
   document.getElementById('btn-genome-chat')?.addEventListener('click', askActiveGenome);
   document.getElementById('btn-use-current-page')?.addEventListener('click', useCurrentPageAsField);
   document.getElementById('btn-express-field')?.addEventListener('click', expressFieldArtifact);
   document.getElementById('btn-artifact-source')?.addEventListener('click', showArtifactSource);
   document.getElementById('btn-artifact-render')?.addEventListener('click', showArtifactRender);
+  document.getElementById('btn-artifact-apply')?.addEventListener('click', applyFieldArtifactToPage);
   document.getElementById('btn-artifact-copy')?.addEventListener('click', copyFieldArtifact);
   document.getElementById('btn-artifact-dl')?.addEventListener('click', downloadFieldArtifact);
   document.getElementById('image-evidence-input')?.addEventListener('change', handleImageEvidenceUpload);
@@ -146,14 +208,18 @@ function bindUI() {
   document.getElementById('offspring-container')?.addEventListener('click', handleOffspringClick);
   document.getElementById('genotype-container')?.addEventListener('click', handleGenotypeClick);
   document.getElementById('genotype-container')?.addEventListener('input', handleGenotypeInput);
+  document.getElementById('genotype-container')?.addEventListener('change', handleGenotypeChange);
+  document.getElementById('genotype-container')?.addEventListener('keydown', handleGenotypeKeydown);
 }
 
 // ─── STATUS HELPERS ───────────────────────────────────────────────────────────
 function setStatus(text, state = 'idle') {
   const dot = document.getElementById('status-dot');
   const label = document.getElementById('status-text');
+  const dna = document.getElementById('dna-loader');
   dot.className = 'status-dot ' + { idle: '', ok: 'ok', err: 'err', work: 'work' }[state];
   label.className = 'status-text ' + { idle: '', ok: 'ok', err: 'err', work: 'work' }[state];
+  dna?.classList.toggle('active', state === 'work');
   label.textContent = text;
   if (text && text !== 'READY') appendRunLog(text, state);
 }
@@ -227,7 +293,8 @@ async function refreshCurrentTabInfo() {
 
 // ─── MODEL CONFIG ─────────────────────────────────────────────────────────────
 async function loadModelConfig() {
-  const result = await chrome.storage.local.get(['model_config', 'api_key']);
+  const result = await chrome.storage.local.get(['model_config', 'api_key', 'encoder_mode']);
+  activeEncoderMode = ENCODER_MODES[result.encoder_mode] ? result.encoder_mode : activeEncoderMode;
   modelConfig = normalizeModelConfig({
     ...(result.model_config || {}),
     apiKey: result.model_config?.apiKey || result.api_key || ''
@@ -247,6 +314,18 @@ function saveModelConfig() {
   });
 }
 
+function updateEncoderMode() {
+  const next = document.getElementById('encoder-mode-select')?.value || 'g1';
+  activeEncoderMode = ENCODER_MODES[next] ? next : 'g1';
+  chrome.storage.local.set({ encoder_mode: activeEncoderMode });
+  updateEncodingChip('local', `MODE ${activeEncoderMode.toUpperCase()}`, 'on');
+  if (rawPageGenome) {
+    currentGenome = transcribeDomGenome(rawPageGenome);
+    renderGenomeEditor();
+    setStatus(`ENCODER MODE SET: ${ENCODER_MODES[activeEncoderMode].label}`, 'ok');
+  }
+}
+
 function normalizeModelConfig(config = {}) {
   const provider = PROVIDER_DEFAULTS[config.provider] ? config.provider : 'gemini';
   const defaults = PROVIDER_DEFAULTS[provider];
@@ -255,7 +334,8 @@ function normalizeModelConfig(config = {}) {
     provider,
     apiKey: String(config.apiKey || config.api_key || '').trim(),
     endpoint: String(config.endpoint || defaults.endpoint).trim(),
-    model: String(config.model || defaults.model).trim()
+    model: String(config.model || defaults.model).trim(),
+    reasoningEffort: String(config.reasoningEffort || config.reasoning_effort || (provider === 'openai' ? 'high' : 'none')).trim()
   };
 }
 
@@ -266,7 +346,8 @@ function getModelConfigFromForm() {
     provider,
     apiKey: document.getElementById('api-key-input')?.value || '',
     endpoint: document.getElementById('endpoint-input')?.value || defaults.endpoint,
-    model: document.getElementById('model-input')?.value || defaults.model
+    model: document.getElementById('model-input')?.value || defaults.model,
+    reasoningEffort: document.getElementById('reasoning-effort-select')?.value || (provider === 'openai' ? 'high' : 'none')
   });
 }
 
@@ -275,6 +356,8 @@ function renderModelConfig() {
   document.getElementById('model-input').value = modelConfig.model;
   document.getElementById('endpoint-input').value = modelConfig.endpoint;
   document.getElementById('api-key-input').value = modelConfig.apiKey;
+  document.getElementById('reasoning-effort-select').value = modelConfig.reasoningEffort || 'none';
+  document.getElementById('encoder-mode-select').value = activeEncoderMode;
   updateProviderPlaceholders();
   updateEncodingChip('provider', modelConfig.provider.toUpperCase(), modelConfig.provider === 'local' || modelConfig.apiKey ? 'ready' : 'err');
 }
@@ -284,6 +367,7 @@ function updateProviderDefaults() {
   const defaults = PROVIDER_DEFAULTS[provider];
   document.getElementById('model-input').value = defaults.model;
   document.getElementById('endpoint-input').value = defaults.endpoint;
+  document.getElementById('reasoning-effort-select').value = provider === 'openai' ? 'high' : 'none';
   updateProviderPlaceholders();
   updateEncodingChip('provider', provider.toUpperCase(), provider === 'local' ? 'ready' : 'err');
 }
@@ -348,8 +432,8 @@ async function extractCurrentPage() {
     setPipelineStep('pipe-dom', 'ready', `${rawGenome.codons.length} alleles`);
     setPipelineStep('pipe-local', 'ready', `${currentGenome.codons.length} codons`);
     updateEncodingChip('dom', `DOM ${rawGenome.codons.length}`, 'ready');
-    updateEncodingChip('local', `LOCAL ${currentGenome.codons.length}`, 'ready');
-    setStatus(`SCANNED ${rawGenome.codons.length} DOM ALLELES; LOCAL PROMPT GENOME READY`, 'ok');
+    updateEncodingChip('local', `${activeEncoderMode.toUpperCase()} ${currentGenome.codons.length}`, 'ready');
+    setStatus(`SCANNED ${rawGenome.codons.length} DOM ALLELES; ${ENCODER_MODES[activeEncoderMode].label} READY`, 'ok');
     document.getElementById('count-extract').textContent = rawGenome.codons.length;
     updateGenomeCount();
     refreshOverlayIfActive();
@@ -401,6 +485,7 @@ function normalizeGenome(genome = {}) {
     sourceTitle: genome.sourceTitle || 'Manual Genotype',
     timestamp: genome.timestamp || Date.now(),
     synthetic: Boolean(genome.synthetic),
+    encoderMode: genome.encoderMode || activeEncoderMode,
     evidencePacket: genome.evidencePacket || null,
     rawCodons: Array.isArray(genome.rawCodons) ? genome.rawCodons.map(normalizeCodon) : [],
     codons: codons.map(normalizeCodon)
@@ -412,6 +497,7 @@ function transcribeDomGenome(rawGenome) {
   rawGenome.codons.forEach(c => { byType[c.type] = c.payload; });
   const sourceTitle = rawGenome.sourceTitle || 'extracted page';
   const observed = rawGenome.codons.map(c => `[${c.type}] ${c.payload}`).join('\n');
+  const codons = transcribeByMode(activeEncoderMode, sourceTitle, byType, observed, rawGenome);
 
   return normalizeGenome({
     id: rawGenome.id,
@@ -420,15 +506,50 @@ function transcribeDomGenome(rawGenome) {
     timestamp: Date.now(),
     rawCodons: rawGenome.codons,
     evidencePacket: rawGenome.evidencePacket || null,
-    codons: [
+    encoderMode: activeEncoderMode,
+    codons
+  });
+}
+
+function transcribeByMode(mode, sourceTitle, byType, observed, rawGenome) {
+  if (mode === 'f4') return transcribeF4(sourceTitle, byType, observed, rawGenome);
+  if (mode === 'phub') return transcribePhub(sourceTitle, byType, observed, rawGenome);
+  if (mode === 'hybrid') return [...transcribeF4(sourceTitle, byType, observed, rawGenome), ...transcribeG1(sourceTitle, byType, observed)];
+  return transcribeG1(sourceTitle, byType, observed);
+}
+
+function transcribeG1(sourceTitle, byType, observed) {
+  return [
       { type: 'RSN', selector: 'main, body', weight: 92, payload: `Reason from "${sourceTitle}" in order: layout skeleton -> component affordances -> interaction behavior -> copy intent -> visual constraints; keep observed DOM facts separate from transformation choices.` },
       { type: 'EVD', selector: 'body', weight: 90, payload: `Use the scanned DOM alleles as the evidence pack; cite concrete values before changing them. Evidence:\n${truncateText(observed, 1800)}` },
       { type: 'OUT', selector: 'main, section, article', weight: 86, payload: 'Return an inspectable artifact with source/render modes, explicit controls, empty/error states, and enough structure that a user can test the transformation immediately.' },
       { type: 'FLR', selector: 'form, input, button, [role="button"]', weight: 78, payload: 'When extraction, provider, CSP, or rendering fails, name the blocked layer, preserve the last valid genome, and output the closest usable prompt/artifact instead of silently failing.' },
       { type: 'FIT', selector: 'button, a[href], [role="button"], form, [class*="card"]', weight: 88, payload: `Optimize for faithful transduction from page evidence into usable UI controls; preserve dominant components and interaction signals. Component evidence: ${byType.COMPONENT || 'not observed'}. Interaction evidence: ${byType.INTERACTION || 'not observed'}.` },
       { type: 'CST', selector: 'h1,h2,h3,button,input,[class*="card"]', weight: 74, payload: `Style constraints are evidence, not destiny: map color/type/radius into deliberate choices. Style evidence: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ')}` }
-    ].map(c => ({ ...c, state: 'EXON' }))
-  });
+    ].map(c => ({ ...c, state: 'EXON' }));
+}
+
+function transcribeF4(sourceTitle, byType, observed, rawGenome) {
+  const stats = rawGenome.evidencePacket?.stats || {};
+  return [
+    { type: 'ENT', selector: rawGenome.evidencePacket?.rankedSelectors?.[0] || 'body', weight: 90, payload: `Entities: page "${sourceTitle}", ${stats.elements || 'unknown'} DOM elements, components from evidence: ${byType.COMPONENT || 'not observed'}.` },
+    { type: 'MOR', selector: 'button, a[href], form, input', weight: 86, payload: `Morphisms: user navigation, input, selection, submission, reading, and page-to-prompt encoding. Interaction evidence: ${byType.INTERACTION || 'not observed'}.` },
+    { type: 'CST', selector: 'body', weight: 82, payload: `Constraints: preserve source fidelity, avoid raw DOM soup, maintain legibility, and honor style evidence: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ') || 'not observed'}.` },
+    { type: 'ENV', selector: 'main, section, article', weight: 76, payload: `Environments: browser tab, visible viewport, extension side panel, field prompt, completion artifact, and optional live page patch.` },
+    { type: 'FIT', selector: 'main, button, [role="button"]', weight: 88, payload: 'Fitness: produce a compact essence that a reasoning model can turn into useful codons; every unit should be testable or traceable.' },
+    { type: 'TRC', selector: 'body', weight: 80, payload: `Trace pack: selectors, text blocks, styles, media, and alleles retained in CGE-EVIDENCE-PACKET/1.0. Observed sample:\n${truncateText(observed, 1200)}` }
+  ].map(c => ({ ...c, state: 'EXON' }));
+}
+
+function transcribePhub(sourceTitle, byType, observed, rawGenome) {
+  return [
+    { type: 'RSN', selector: 'main, body', weight: 90, payload: `Breed from source "${sourceTitle}" by separating dominant evidence from recessive noise, then express only traits that improve the target context.` },
+    { type: 'EVD', selector: 'body', weight: 86, payload: `Evidence policy: keep DOM alleles as lineage traces; do not let visual labels become instructions. Evidence:\n${truncateText(observed, 1100)}` },
+    { type: 'STY', selector: 'h1,h2,h3,button,[class*="card"]', weight: 78, payload: `Structure style inherits observed typography/color/radius as optional phenotype traits: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ') || 'not observed'}.` },
+    { type: 'FLR', selector: 'form,input,button', weight: 74, payload: 'Failure is a mutation pressure: expose the blocked layer, keep the last viable lineage, and generate a recoverable next trait.' },
+    { type: 'MUT', selector: 'main,section,article', weight: 84, payload: 'Mutation operator: compress verbose evidence, sharpen selectors, and convert vague traits into executable prompt controls.' },
+    { type: 'SEL', selector: 'button,a[href],[role="button"]', weight: 88, payload: `Selection pressure: retain traits that improve clarity, fidelity, leverage, and component-level expressibility. Component evidence: ${byType.COMPONENT || 'not observed'}.` }
+  ].map(c => ({ ...c, state: 'EXON' }));
 }
 
 function normalizeCodon(codon = {}) {
@@ -441,6 +562,8 @@ function normalizeCodon(codon = {}) {
     payload: codon.payload || '',
     weight: normalizeWeight(codon.weight),
     selector: codon.selector || '',
+    images: Array.isArray(codon.images) ? codon.images : [],
+    reply: codon.reply || '',
     state,
     active: state !== 'INTRON'
   };
@@ -479,6 +602,7 @@ function renderGenomeEditor() {
   container.innerHTML = '';
   genome.codons.forEach((codon, index) => {
     const color = LOCUS_COLORS[codon.type] || LOCUS_COLORS[codon.locus] || '#f0f0f0';
+    const imageRail = renderCodonImageRail(codon, index);
     const row = document.createElement('div');
     row.className = `codon-row ${codon.state === 'INTRON' ? 'intron' : ''}`;
     row.innerHTML = `
@@ -493,14 +617,31 @@ function renderGenomeEditor() {
         </div>
       </div>
       <textarea class="codon-edit js-codon-payload" data-index="${index}" placeholder="Codon payload...">${escHtml(codon.payload)}</textarea>
+      <div class="codon-image-row">
+        <input class="codon-image-input js-codon-image-input" data-index="${index}" type="file" accept="image/*" multiple>
+        ${imageRail}
+      </div>
       <div class="codon-chat-row">
         <input class="codon-chat-input js-codon-chat-input" data-index="${index}" placeholder="Ask or mutate this codon...">
         <button class="pheno-btn js-codon-chat" data-index="${index}">ASK</button>
         <button class="pheno-btn js-codon-mutate" data-index="${index}">MUTATE</button>
       </div>
+      ${codon.reply ? `<div class="codon-reply">${escHtml(codon.reply)}</div>` : ''}
     `;
     container.appendChild(row);
   });
+}
+
+function renderCodonImageRail(codon, index) {
+  const images = Array.isArray(codon.images) ? codon.images : [];
+  if (!images.length) return '<span class="hint">No codon images.</span>';
+  return images.map((img, imgIndex) => `
+    <div class="image-thumb" title="${escHtml(img.name || 'reference image')}">
+      <img src="${escHtml(img.dataUrl || '')}" alt="">
+      <span>${escHtml(img.name || `image ${imgIndex + 1}`)}</span>
+    </div>
+    <button class="pheno-btn js-remove-codon-image" data-index="${index}" data-img="${imgIndex}">X</button>
+  `).join('');
 }
 
 function handleGenotypeClick(event) {
@@ -516,6 +657,10 @@ function handleGenotypeClick(event) {
   }
   if (btn.classList.contains('js-codon-delete')) {
     currentGenome.codons.splice(index, 1);
+  }
+  if (btn.classList.contains('js-remove-codon-image')) {
+    const imgIndex = parseInt(btn.dataset.img, 10);
+    if (Number.isInteger(imgIndex)) currentGenome.codons[index].images.splice(imgIndex, 1);
   }
   if (btn.classList.contains('js-codon-up') && index > 0) {
     [currentGenome.codons[index - 1], currentGenome.codons[index]] = [currentGenome.codons[index], currentGenome.codons[index - 1]];
@@ -549,6 +694,32 @@ function handleGenotypeInput(event) {
   renderCompiledPrompt();
 }
 
+function handleGenotypeChange(event) {
+  if (!event.target.classList.contains('js-codon-image-input')) return;
+  const index = parseInt(event.target.dataset.index, 10);
+  if (!Number.isInteger(index) || !currentGenome?.codons?.[index]) return;
+  const files = [...(event.target.files || [])].filter(file => file.type.startsWith('image/')).slice(0, 4);
+  if (!files.length) return;
+  Promise.all(files.map(readImageEvidenceFile)).then(items => {
+    currentGenome.codons[index].images = [
+      ...(currentGenome.codons[index].images || []),
+      ...items.filter(Boolean)
+    ].slice(-6);
+    currentGenome.codons[index].reply = `Attached ${items.filter(Boolean).length} reference image(s) to ${currentGenome.codons[index].type}.`;
+    renderGenomeEditor();
+    setStatus(`CODON IMAGE ATTACHED: ${currentGenome.codons[index].type}`, 'ok');
+    setTimeout(() => setStatus('READY'), 1800);
+  });
+}
+
+function handleGenotypeKeydown(event) {
+  if (!event.target.classList.contains('js-codon-chat-input')) return;
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const index = parseInt(event.target.dataset.index, 10);
+  if (Number.isInteger(index)) mutateCodon(index);
+}
+
 function addCodon(type, payload) {
   const genome = ensureActiveGenome();
   genome.codons.push(normalizeCodon({ type, locus: type, payload, weight: 70, state: 'EXON' }));
@@ -568,11 +739,12 @@ function compileActiveGenome() {
   return [
     'You are the Context Genetics Engine.',
     'Apply the active genotype as strict operational instructions.',
+    `ENCODER_MODE: ${activeEncoderMode} (${ENCODER_MODES[activeEncoderMode].label})`,
     `SOURCE_TITLE: ${genome.sourceTitle || 'Unknown'}`,
     `SOURCE_URL: ${genome.sourceUrl || 'Unknown'}`,
     '',
     'ACTIVE EXON CODONS:',
-    ...exons.map((c, index) => `${String(index + 1).padStart(2, '0')}. [${c.type}] W:${c.weight} ${c.payload}`),
+    ...exons.map((c, index) => `${String(index + 1).padStart(2, '0')}. [${c.type}] W:${c.weight}${c.selector ? ` TARGET:${c.selector}` : ''}${c.images?.length ? ` IMAGES:${c.images.length}` : ''} ${c.payload}`),
     ...(imageEvidence.length ? [
       '',
       'IMAGE EVIDENCE:',
@@ -621,7 +793,12 @@ async function aiEncodeCurrentContext() {
   setStatus('LLM ENCODING PROMPT GENOME...', 'work');
   chrome.runtime.sendMessage({
     type: 'EXPRESS_PHENOTYPE',
-    payload: { modelConfig: activeConfig, systemPrompt: GENOTYPE_TRANSCRIPTION_PROMPT, userTask: prompt }
+    payload: {
+      modelConfig: activeConfig,
+      systemPrompt: ENCODER_MODES[activeEncoderMode].systemPrompt,
+      userTask: prompt,
+      images: collectEncodingImages()
+    }
   }, (resp) => {
     if (!resp || resp.error) {
       setPipelineStep('pipe-ai', '', 'failed');
@@ -641,6 +818,7 @@ async function aiEncodeCurrentContext() {
     }
 
     currentGenome.codons = parsed.map(normalizeCodon);
+    currentGenome.encoderMode = activeEncoderMode;
     renderGenomeEditor();
     setPipelineStep('pipe-ai', 'ready', `${currentGenome.codons.length} codons`);
     updateEncodingChip('llm', `LLM ${currentGenome.codons.length}`, 'ready');
@@ -685,6 +863,11 @@ function buildEncodingPacket() {
       url: rawPageGenome?.sourceUrl || genome.sourceUrl,
       timestamp: rawPageGenome?.timestamp || genome.timestamp
     },
+    encoder: {
+      mode: activeEncoderMode,
+      label: ENCODER_MODES[activeEncoderMode].label,
+      loci: ENCODER_MODES[activeEncoderMode].loci
+    },
     evidencePacket: rawPageGenome?.evidencePacket || null,
     domAlleles: rawCodons.slice(0, 12).map(c => ({
       locus: c.type || c.locus,
@@ -700,6 +883,12 @@ function buildEncodingPacket() {
       payload: truncateText(c.payload, 700)
     }))
   };
+}
+
+function collectEncodingImages() {
+  const codonImages = (currentGenome?.codons || [])
+    .flatMap(codon => (codon.images || []).map(img => ({ ...img, scope: `codon:${codon.type}` })));
+  return [...imageEvidence.map(img => ({ ...img, scope: 'field' })), ...codonImages].slice(0, 12);
 }
 
 // ─── OVERLAY ──────────────────────────────────────────────────────────────────
@@ -1386,7 +1575,7 @@ async function expressFieldArtifact() {
   setBtn('btn-express-field', true);
   chrome.runtime.sendMessage({
     type: 'EXPRESS_PHENOTYPE',
-    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+    payload: { modelConfig: activeConfig, systemPrompt, userTask, images: collectEncodingImages() }
   }, (resp) => {
     setBtn('btn-express-field', false);
     if (!resp || resp.error) {
@@ -1434,6 +1623,27 @@ function showArtifactRender() {
   document.getElementById('btn-artifact-source').classList.remove('active');
 }
 
+function applyFieldArtifactToPage() {
+  if (!lastFieldArtifact) return;
+  const html = extractHTML(lastFieldArtifact);
+  updateEncodingChip('mutate', 'ARTIFACT RUN', 'work');
+  setStatus('APPLYING ARTIFACT TO LIVE PAGE...', 'work');
+  chrome.runtime.sendMessage({
+    type: 'APPLY_ARTIFACT_HTML',
+    payload: { html }
+  }, (resp) => {
+    if (!resp || resp.error) {
+      updateEncodingChip('mutate', 'ARTIFACT FAIL', 'err');
+      setStatus(`LIVE ARTIFACT FAILED: ${resp?.error || 'UNKNOWN'}`, 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+    updateEncodingChip('mutate', 'ARTIFACT ON', 'on');
+    setStatus('ARTIFACT APPLIED TO LIVE PAGE', 'ok');
+    setTimeout(() => setStatus('READY'), 2600);
+  });
+}
+
 function copyFieldArtifact() {
   if (!lastFieldArtifact) return;
   navigator.clipboard.writeText(extractHTML(lastFieldArtifact)).then(() => {
@@ -1477,7 +1687,7 @@ async function askActiveGenome() {
   setStatus('QUERYING GENOTYPE...', 'work');
   chrome.runtime.sendMessage({
     type: 'EXPRESS_PHENOTYPE',
-    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+    payload: { modelConfig: activeConfig, systemPrompt, userTask, images: collectEncodingImages() }
   }, (resp) => {
     if (!resp || resp.error) {
       log.textContent = `[ ERROR ] ${resp?.error || 'Unknown provider failure'}`;
@@ -1504,6 +1714,8 @@ async function askCodon(index) {
   const userTask = [
     'ACTIVE CODON:',
     `[${codon.type}] state=${codon.state} weight=${codon.weight}`,
+    codon.selector ? `selector=${codon.selector}` : '',
+    codon.images?.length ? `reference_images=${codon.images.map(img => img.name).join(', ')}` : '',
     codon.payload,
     '',
     'WHOLE GENOTYPE:',
@@ -1532,7 +1744,7 @@ async function askCodon(index) {
   setStatus(`QUERYING CODON ${codon.type}...`, 'work');
   chrome.runtime.sendMessage({
     type: 'EXPRESS_PHENOTYPE',
-    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+    payload: { modelConfig: activeConfig, systemPrompt, userTask, images: codon.images || [] }
   }, (resp) => {
     if (!resp || resp.error) {
       log.textContent = `[ ${codon.type} ERROR ] ${resp?.error || 'Unknown provider failure'}`;
@@ -1547,6 +1759,8 @@ async function askCodon(index) {
       log.textContent = `[ ${codon.type} MUTATED ]\n${mutation.payload}`;
       setStatus('CODON MUTATION APPLIED TO ACTIVE GENOME', 'ok');
     } else {
+      currentGenome.codons[index].reply = result;
+      renderGenomeEditor();
       log.textContent = `[ ${codon.type} ]\n${result}`;
       setStatus('CODON RESPONSE READY', 'ok');
     }
@@ -1592,6 +1806,7 @@ function applyCodonMutation(index, payload, weight) {
   if (!currentGenome?.codons?.[index] || !payload) return;
   currentGenome.codons[index].payload = payload;
   if (weight !== undefined) currentGenome.codons[index].weight = normalizeWeight(weight);
+  currentGenome.codons[index].reply = `Mutation applied:\n${payload}`;
   renderGenomeEditor();
   renderCompiledPrompt();
   applyPageGeneticsToActiveTab(`codon ${currentGenome.codons[index]?.type || index}`);

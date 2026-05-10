@@ -43,6 +43,13 @@
     .encoding-chip.work{background:var(--primary);border-color:var(--primary);color:#000;animation:pulse 1s infinite;}
     .encoding-chip.err{background:var(--danger);border-color:var(--danger);color:#000;}
     .encoding-chip.on{background:var(--yellow);border-color:var(--yellow);color:#000;}
+    .dna-loader{display:none;grid-template-columns:repeat(18,1fr);gap:2px;padding:5px 8px;background:#000;border-bottom:1px solid var(--border);height:18px;overflow:hidden;}
+    .dna-loader.active{display:grid;}
+    .dna-rung{height:8px;border-radius:999px;background:var(--primary);animation:dnaEncode 1.1s infinite ease-in-out;}
+    .dna-rung:nth-child(2n){background:var(--exon);animation-delay:0.06s;}
+    .dna-rung:nth-child(3n){background:var(--pink);animation-delay:0.12s;}
+    .dna-rung:nth-child(4n){background:var(--yellow);animation-delay:0.18s;}
+    @keyframes dnaEncode{0%,100%{transform:translateY(0) scaleX(0.45);opacity:0.45}50%{transform:translateY(4px) scaleX(1);opacity:1}}
 
     /* TABS */
     .tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
@@ -112,6 +119,9 @@
     .image-thumb{width:62px;min-width:62px;border:1px solid var(--border);border-radius:4px;background:var(--bg);overflow:hidden;}
     .image-thumb img{display:block;width:100%;height:42px;object-fit:cover;background:#000;}
     .image-thumb span{display:block;padding:3px 4px;font:8px/1.2 var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .codon-image-row{display:flex;gap:6px;align-items:center;padding:6px 8px;border-top:1px solid var(--border);background:#070707;overflow-x:auto;}
+    .codon-image-input{max-width:180px;font:9px var(--mono);color:var(--dim);}
+    .codon-reply{padding:7px 8px;border-top:1px solid var(--border);font:10px/1.45 var(--mono);color:var(--exon);background:#020202;white-space:pre-wrap;}
 
     /* BREED SLOTS */
     .breed-slot{border:2px dashed var(--border);border-radius:6px;padding:12px;text-align:center;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.15s;cursor:pointer;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;}
@@ -172,6 +182,8 @@
     .diag-entry.err{border-color:rgba(248,113,113,0.45);color:var(--danger);}
     .diag-entry.work{border-color:rgba(96,165,250,0.4);color:var(--primary);}
     .diag-time{color:var(--dim);}
+    .encoder-row{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:10px;}
+    .encoder-label{font-family:var(--mono);font-size:9px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);}
   </style>
 </head>
 <body>
@@ -205,6 +217,12 @@
     <div class="encoding-chip" id="enc-provider">PROVIDER ?</div>
   </div>
 
+  <div class="dna-loader" id="dna-loader" aria-hidden="true">
+    <div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div>
+    <div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div>
+    <div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div><div class="dna-rung"></div>
+  </div>
+
   <!-- TABS — no onclick, wired in JS -->
   <div class="tabs">
     <div class="tab active" id="tab-extract" data-tab="extract">
@@ -227,6 +245,15 @@
       <div class="section-title"><div class="sdot" style="background:var(--teal)"></div>Current Page</div>
       <div id="current-page-info" class="hint" style="margin-bottom:10px;padding:8px;background:var(--surface);border-radius:4px;border:1px solid var(--border);">
         Navigate to any website, then click Extract.
+      </div>
+      <div class="encoder-row">
+        <label class="encoder-label" for="encoder-mode-select">Encoder Grammar</label>
+        <select class="input" id="encoder-mode-select">
+          <option value="g1">g1 Prompt Genome</option>
+          <option value="f4">f4 Operational Genome</option>
+          <option value="phub">phub Breeding Genome</option>
+          <option value="hybrid">Hybrid f4 -> g1</option>
+        </select>
       </div>
       <div class="pipeline">
         <div class="pipeline-step" id="pipe-dom">
@@ -338,6 +365,7 @@
           <div class="pheno-toolbar-actions">
             <button class="pheno-btn active" id="btn-artifact-source">SOURCE</button>
             <button class="pheno-btn" id="btn-artifact-render">RENDER</button>
+            <button class="pheno-btn" id="btn-artifact-apply">APPLY</button>
             <button class="pheno-btn" id="btn-artifact-copy">COPY</button>
             <button class="pheno-btn" id="btn-artifact-dl">DL</button>
           </div>
@@ -424,15 +452,22 @@
   <div class="panel" id="panel-settings">
     <div class="section">
       <div class="section-title"><div class="sdot" style="background:var(--primary)"></div>Model Provider</div>
-      <p class="hint" style="margin-bottom:8px;">Choose Gemini, OpenAI, Anthropic, or a local OpenAI-compatible Llama server. Keys stay in Chrome local storage. Local mode can run without a key.</p>
+      <p class="hint" style="margin-bottom:8px;">Choose Gemini, OpenAI Reasoning, Anthropic, or a local OpenAI-compatible Llama server. Keys stay in Chrome local storage. Local mode can run without a key.</p>
       <select class="input" id="provider-select" style="margin-bottom:8px;">
         <option value="gemini">Gemini</option>
-        <option value="openai">OpenAI-compatible</option>
+        <option value="openai">OpenAI Reasoning</option>
         <option value="anthropic">Anthropic</option>
         <option value="local">Local Llama</option>
       </select>
       <input type="text" class="input" id="model-input" placeholder="Model name" style="margin-bottom:8px;">
       <input type="text" class="input" id="endpoint-input" placeholder="API endpoint" style="margin-bottom:8px;">
+      <select class="input" id="reasoning-effort-select" style="margin-bottom:8px;">
+        <option value="none">Reasoning: none</option>
+        <option value="low">Reasoning: low</option>
+        <option value="medium">Reasoning: medium</option>
+        <option value="high">Reasoning: high</option>
+        <option value="xhigh">Reasoning: xhigh</option>
+      </select>
       <div class="api-input-wrap" style="margin-bottom:8px;">
         <input type="password" class="input api-key-field" id="api-key-input" placeholder="API key, blank for local">
         <button class="api-reveal" id="btn-api-reveal">SHOW</button>

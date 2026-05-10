@@ -22,8 +22,8 @@ const PROVIDER_DEFAULTS = {
     model: 'gemini-2.5-flash'
   },
   openai: {
-    endpoint: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini'
+    endpoint: 'https://api.openai.com/v1/responses',
+    model: 'gpt-5.5'
   },
   local: {
     endpoint: 'http://localhost:11434/v1/chat/completions',
@@ -107,6 +107,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
 
+    case 'APPLY_ARTIFACT_HTML': {
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (!tabs[0]) return sendResponse({ error: 'No active tab' });
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: applyArtifactOverlay,
+            args: [payload.html || '']
+          });
+          sendResponse({ ok: true });
+        } catch (e) {
+          sendResponse({ error: e.message });
+        }
+      });
+      return true;
+    }
+
     // ── STORAGE: Save a genome to the lineage vault
     case 'SAVE_GENOME': {
       const key = `genome:${Date.now()}`;
@@ -161,6 +178,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       callModel({
         system: payload.systemPrompt || 'You are a UI genetics engine.',
         prompt: payload.userTask || '',
+        images: payload.images || [],
         config: payload.modelConfig || payload
       })
         .then(result => sendResponse({ ok: true, result }))
@@ -173,6 +191,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       callModel({
         system: 'You are a UI Genetics Engine. Given DOM genome codons from one or two websites, generate a novel UI offspring as a self-contained HTML page. Output ONLY valid HTML inside triple backticks. The UI should be inspired by the genetic traits but be a new, working design.',
         prompt: payload.prompt || '',
+        images: payload.images || [],
         config: payload.modelConfig || payload
       })
         .then(result => sendResponse({ ok: true, result }))
@@ -205,7 +224,8 @@ function normalizeModelConfig(config = {}) {
     provider,
     apiKey: String(config.apiKey || config.api_key || '').trim(),
     endpoint: String(config.endpoint || defaults.endpoint).trim(),
-    model: String(config.model || defaults.model).trim()
+    model: String(config.model || defaults.model).trim(),
+    reasoningEffort: String(config.reasoningEffort || config.reasoning_effort || (provider === 'openai' ? 'high' : 'none')).trim()
   };
 }
 
@@ -213,7 +233,7 @@ function scrubConfig(config) {
   return { ...config, apiKey: config.apiKey ? '[stored]' : '' };
 }
 
-async function callModel({ system, prompt, config }) {
+async function callModel({ system, prompt, images = [], config }) {
   const modelConfig = await loadModelConfig(config);
   if (modelConfig.provider !== 'local' && !modelConfig.apiKey) {
     throw new Error(`API key required for ${modelConfig.provider}. Use local Llama for no-key testing.`);
@@ -223,7 +243,10 @@ async function callModel({ system, prompt, config }) {
     return callAnthropic(system, prompt, modelConfig);
   }
   if (modelConfig.provider === 'gemini') {
-    return callGemini(system, prompt, modelConfig);
+    return callGemini(system, prompt, modelConfig, images);
+  }
+  if (modelConfig.provider === 'openai') {
+    return callOpenAIResponses(system, prompt, modelConfig, images);
   }
   return callOpenAICompatible(system, prompt, modelConfig);
 }
@@ -250,7 +273,7 @@ async function callAnthropic(system, prompt, config) {
   return data.content?.map(part => part.text || '').join('\n').trim();
 }
 
-async function callGemini(system, prompt, config) {
+async function callGemini(system, prompt, config, images = []) {
   const endpoint = `${config.endpoint.replace(/\/$/, '')}/${encodeURIComponent(config.model)}:generateContent`;
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -260,13 +283,44 @@ async function callGemini(system, prompt, config) {
     },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{ parts: [{ text: prompt }] }]
+      contents: [{ parts: [{ text: prompt }, ...imagesToGeminiParts(images)] }]
     })
   });
 
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error?.message || `Gemini HTTP ${response.status}`);
   return data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n').trim() || '';
+}
+
+async function callOpenAIResponses(system, prompt, config, images = []) {
+  const content = [{ type: 'input_text', text: prompt }];
+  imagesToOpenAIContent(images).forEach(part => content.push(part));
+  const body = {
+    model: config.model,
+    instructions: system,
+    input: [{ role: 'user', content }]
+  };
+  if (config.reasoningEffort && config.reasoningEffort !== 'none') {
+    body.reasoning = { effort: config.reasoningEffort };
+  }
+
+  const response = await fetch(config.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  const data = await response.json();
+  if (!response.ok || data.error) throw new Error(data.error?.message || `OpenAI HTTP ${response.status}`);
+  if (typeof data.output_text === 'string') return data.output_text;
+  return (data.output || [])
+    .flatMap(item => item.content || [])
+    .map(part => part.text || '')
+    .join('\n')
+    .trim();
 }
 
 async function callOpenAICompatible(system, prompt, config) {
@@ -289,6 +343,28 @@ async function callOpenAICompatible(system, prompt, config) {
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error?.message || `${config.provider} HTTP ${response.status}`);
   return data.choices?.[0]?.message?.content || data.output_text || '';
+}
+
+function imagesToOpenAIContent(images = []) {
+  return images
+    .filter(img => img?.dataUrl)
+    .slice(0, 8)
+    .map(img => ({
+      type: 'input_image',
+      image_url: img.dataUrl
+    }));
+}
+
+function imagesToGeminiParts(images = []) {
+  return images
+    .filter(img => img?.dataUrl)
+    .slice(0, 8)
+    .map(img => {
+      const match = String(img.dataUrl).match(/^data:([^;]+);base64,(.*)$/);
+      if (!match) return null;
+      return { inlineData: { mimeType: match[1], data: match[2] } };
+    })
+    .filter(Boolean);
 }
 
 // ─── DOM EXTRACTION FUNCTION (runs in page context via executeScript) ─────────
@@ -672,4 +748,44 @@ function applyPageGeneticsCss(css) {
     document.documentElement.appendChild(style);
   }
   style.textContent = String(css || '');
+}
+
+function applyArtifactOverlay(html) {
+  const HOST_ID = '__cge_live_artifact__';
+  const existing = document.getElementById(HOST_ID);
+  if (existing) existing.remove();
+
+  const host = document.createElement('div');
+  host.id = HOST_ID;
+  host.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:#000;';
+  document.documentElement.appendChild(host);
+
+  const shadow = host.attachShadow({ mode: 'open' });
+  const style = document.createElement('style');
+  style.textContent = `
+    :host { all: initial; }
+    .bar {
+      position:absolute; left:0; right:0; top:0; height:34px; display:flex; align-items:center; justify-content:space-between;
+      background:#000; color:#fff; border-bottom:2px solid #fff; font:900 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing:0.08em; padding:0 10px; z-index:2;
+    }
+    button { background:#fff; color:#000; border:0; padding:5px 8px; font:900 10px ui-monospace, SFMono-Regular, Menlo, monospace; cursor:pointer; }
+    iframe { position:absolute; left:0; right:0; top:34px; bottom:0; width:100%; height:calc(100% - 34px); border:0; background:#fff; }
+  `;
+  shadow.appendChild(style);
+
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  const label = document.createElement('span');
+  label.textContent = 'CONTEXT GENETICS LIVE ARTIFACT';
+  const close = document.createElement('button');
+  close.textContent = 'CLOSE';
+  close.addEventListener('click', () => host.remove());
+  bar.append(label, close);
+  shadow.appendChild(bar);
+
+  const frame = document.createElement('iframe');
+  frame.sandbox = 'allow-scripts allow-forms allow-modals';
+  frame.src = `data:text/html;charset=utf-8,${encodeURIComponent(String(html || '<!doctype html><html><body>No artifact.</body></html>'))}`;
+  shadow.appendChild(frame);
 }
