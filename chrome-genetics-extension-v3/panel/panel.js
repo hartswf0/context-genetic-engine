@@ -23,6 +23,8 @@ let parentA = null;             // <DOMGenome> selected as Parent A
 let parentB = null;             // <DOMGenome> selected as Parent B
 let lastPhenotype = '';         // Last <Phenotype> HTML output
 let lastFieldArtifact = '';     // Last direct genotype expression artifact
+let phenotypeBlobUrl = '';
+let fieldBlobUrl = '';
 let overlayActive = false;      // Whether the DOM annotation overlay is on
 let apiKey = '';                // Backwards-compatible shortcut for modelConfig.apiKey
 let modelConfig = {
@@ -36,8 +38,26 @@ let modelConfig = {
 const LOCUS_COLORS = {
   LAYOUT: '#60a5fa', COLOR: '#f472b6', TYPOGRAPHY: '#a78bfa',
   SPACING: '#4ade80', COMPONENT: '#fbbf24', INTERACTION: '#f87171',
-  COPY: '#1cb0c6', RADIUS: '#fb923c'
+  COPY: '#1cb0c6', RADIUS: '#fb923c',
+  RSN: '#60a5fa', EVD: '#4ade80', OUT: '#f0f0f0',
+  STY: '#a78bfa', FLR: '#f87171', FIT: '#c084fc',
+  MUT: '#f472b6', SEL: '#fbbf24', CST: '#e5e7eb', CMT: '#888'
 };
+
+const PROMPT_LOCI = ['RSN', 'EVD', 'OUT', 'FLR', 'FIT', 'CST', 'CMT'];
+
+const GENOTYPE_TRANSCRIPTION_PROMPT = `TRANSCRIBE GENOTYPE.
+Read the Environmental Medium as source material, not as the final genotype.
+Extract operational prompt codons mapped only to these loci:
+1. RSN: Reasoning Order
+2. EVD: Evidence Policy
+3. OUT: Output Form
+4. FLR: Failure Handling
+5. FIT: Fitness Pressure / Optimization target
+6. CST: Custom explicit trait/constraint
+
+DOM observations such as layout, color, typography, components, interaction, copy, and radius are evidence. Convert them into useful prompt controls.
+Output JSON only: an array of objects with { "type": "RSN|EVD|OUT|FLR|FIT|CST", "payload": "specific instruction text", "state": "EXON", "weight": integer }.`;
 
 const PROVIDER_DEFAULTS = {
   gemini: {
@@ -82,6 +102,7 @@ function bindUI() {
     renderGenomeEditor();
     switchTab('genome');
   });
+  document.getElementById('btn-ai-encode')?.addEventListener('click', aiEncodeCurrentContext);
   document.getElementById('btn-refresh-lineage')?.addEventListener('click', loadLineage);
   document.getElementById('btn-goto-breed')?.addEventListener('click', () => switchTab('breed'));
   document.getElementById('slot-a')?.addEventListener('click', () => switchTab('lineage'));
@@ -257,12 +278,14 @@ async function extractCurrentPage() {
       return;
     }
 
-    currentGenome = normalizeGenome(response.genome);
-    renderExtractedCodons(currentGenome);
+    const rawGenome = normalizeGenome(response.genome);
+    currentGenome = transcribeDomGenome(rawGenome);
+    renderExtractedCodons(rawGenome);
     renderGenomeEditor();
     setBtn('btn-overlay', false);
     setBtn('btn-save', false);
     setBtn('btn-load-genome', false);
+    setBtn('btn-ai-encode', false);
     setStatus(`EXTRACTED ${currentGenome.codons.length} CODONS`, 'ok');
     document.getElementById('count-extract').textContent = currentGenome.codons.length;
     updateGenomeCount();
@@ -301,8 +324,32 @@ function normalizeGenome(genome = {}) {
     sourceTitle: genome.sourceTitle || 'Manual Genotype',
     timestamp: genome.timestamp || Date.now(),
     synthetic: Boolean(genome.synthetic),
+    rawCodons: Array.isArray(genome.rawCodons) ? genome.rawCodons.map(normalizeCodon) : [],
     codons: codons.map(normalizeCodon)
   };
+}
+
+function transcribeDomGenome(rawGenome) {
+  const byType = {};
+  rawGenome.codons.forEach(c => { byType[c.type] = c.payload; });
+  const sourceTitle = rawGenome.sourceTitle || 'extracted page';
+  const observed = rawGenome.codons.map(c => `[${c.type}] ${c.payload}`).join('\n');
+
+  return normalizeGenome({
+    id: rawGenome.id,
+    sourceUrl: rawGenome.sourceUrl,
+    sourceTitle,
+    timestamp: Date.now(),
+    rawCodons: rawGenome.codons,
+    codons: [
+      { type: 'RSN', weight: 90, payload: `Construct a theory of the program before producing output. Treat "${sourceTitle}" as environmental evidence and distinguish observations from instructions.` },
+      { type: 'EVD', weight: 88, payload: `Use extracted page evidence as source material. Evidence observed:\n${truncateText(observed, 1200)}` },
+      { type: 'OUT', weight: 82, payload: 'Return a functional, inspectable artifact with explicit structure, states, controls, and source/render modes when useful.' },
+      { type: 'FLR', weight: 76, payload: 'If evidence is incomplete or a page is restricted, state the missing condition and produce the closest safe compiled prompt or artifact.' },
+      { type: 'FIT', weight: 84, payload: `Optimize for source fidelity, usable interface behavior, and clear mapping from page evidence into operational prompt controls. Components: ${byType.COMPONENT || 'not observed'}` },
+      { type: 'CST', weight: 70, payload: `Preserve useful structural signals from the page without mistaking raw DOM traits for the final genotype. Style evidence: ${[byType.COLOR, byType.TYPOGRAPHY, byType.RADIUS].filter(Boolean).join(' ')}` }
+    ].map(c => ({ ...c, state: 'EXON' }))
+  });
 }
 
 function normalizeCodon(codon = {}) {
@@ -367,6 +414,10 @@ function renderGenomeEditor() {
         </div>
       </div>
       <textarea class="codon-edit js-codon-payload" data-index="${index}" placeholder="Codon payload...">${escHtml(codon.payload)}</textarea>
+      <div class="codon-chat-row">
+        <input class="codon-chat-input js-codon-chat-input" data-index="${index}" placeholder="Ask or mutate this codon...">
+        <button class="pheno-btn js-codon-chat" data-index="${index}">ASK</button>
+      </div>
     `;
     container.appendChild(row);
   });
@@ -391,6 +442,10 @@ function handleGenotypeClick(event) {
   }
   if (btn.classList.contains('js-codon-down') && index < currentGenome.codons.length - 1) {
     [currentGenome.codons[index + 1], currentGenome.codons[index]] = [currentGenome.codons[index], currentGenome.codons[index + 1]];
+  }
+  if (btn.classList.contains('js-codon-chat')) {
+    askCodon(index);
+    return;
   }
 
   renderGenomeEditor();
@@ -450,6 +505,68 @@ function renderCompiledPrompt() {
 function updateGenomeCount() {
   const el = document.getElementById('count-genome');
   if (el) el.textContent = String(currentGenome?.codons?.length || 0);
+}
+
+async function aiEncodeCurrentContext() {
+  if (!currentGenome) return;
+  const activeConfig = getModelConfigFromForm();
+  if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
+    setStatus('API KEY REQUIRED — USING LOCAL TRANSCRIPTION', 'err');
+    setTimeout(() => setStatus('READY'), 3000);
+    return;
+  }
+
+  const rawEvidence = currentGenome.rawCodons?.length ? currentGenome.rawCodons : currentGenome.codons;
+  const prompt = [
+    `SOURCE_TITLE: ${currentGenome.sourceTitle}`,
+    `SOURCE_URL: ${currentGenome.sourceUrl}`,
+    '',
+    'ENVIRONMENTAL MEDIUM:',
+    rawEvidence.map(c => `[${c.type}] ${c.payload}`).join('\n')
+  ].join('\n');
+
+  setStatus('AI ENCODING PROMPT GENOTYPE...', 'work');
+  chrome.runtime.sendMessage({
+    type: 'EXPRESS_PHENOTYPE',
+    payload: { modelConfig: activeConfig, systemPrompt: GENOTYPE_TRANSCRIPTION_PROMPT, userTask: prompt }
+  }, (resp) => {
+    if (!resp || resp.error) {
+      setStatus('AI ENCODE FAILED — KEPT LOCAL TRANSCRIPTION', 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+
+    const parsed = parseCodonArray(resp.result);
+    if (!parsed.length) {
+      setStatus('AI ENCODE RETURNED NO CODONS', 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+
+    currentGenome.codons = parsed.map(normalizeCodon);
+    renderGenomeEditor();
+    setStatus('PROMPT GENOTYPE ENCODED', 'ok');
+    setTimeout(() => setStatus('READY'), 2500);
+  });
+}
+
+function parseCodonArray(text) {
+  try {
+    const cleaned = extractJSON(text);
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : (Array.isArray(parsed.codons) ? parsed.codons : []);
+  } catch (e) {
+    return [];
+  }
+}
+
+function extractJSON(text) {
+  const match = String(text || '').match(/```(?:json)?\n([\s\S]*?)```/i);
+  if (match) return match[1];
+  const arrStart = String(text || '').indexOf('[');
+  const arrEnd = String(text || '').lastIndexOf(']');
+  if (arrStart >= 0 && arrEnd > arrStart) return String(text).slice(arrStart, arrEnd + 1);
+  return String(text || '');
 }
 
 // ─── OVERLAY ──────────────────────────────────────────────────────────────────
@@ -1001,7 +1118,7 @@ function showArtifactSource() {
 function showArtifactRender() {
   if (!lastFieldArtifact) return;
   const frame = document.getElementById('artifact-frame');
-  frame.srcdoc = extractHTML(lastFieldArtifact);
+  fieldBlobUrl = renderHtmlInFrame(frame, extractHTML(lastFieldArtifact), fieldBlobUrl);
   document.getElementById('artifact-text').style.display = 'none';
   frame.style.display = 'block';
   document.getElementById('btn-artifact-render').classList.add('active');
@@ -1065,12 +1182,68 @@ async function askActiveGenome() {
   });
 }
 
+async function askCodon(index) {
+  const codon = currentGenome?.codons?.[index];
+  const input = document.querySelector(`.js-codon-chat-input[data-index="${index}"]`);
+  const log = document.getElementById('genome-chat-log');
+  if (!codon || !input || !log) return;
+  const question = input.value.trim() || 'Explain what this codon controls and suggest one precise mutation.';
+  const systemPrompt = 'You are inspecting one prompt codon inside a larger active genotype. Answer concretely. If asked for a mutation, output the replacement payload clearly.';
+  const userTask = [
+    'ACTIVE CODON:',
+    `[${codon.type}] state=${codon.state} weight=${codon.weight}`,
+    codon.payload,
+    '',
+    'WHOLE GENOTYPE:',
+    compileActiveGenome(),
+    '',
+    'QUESTION:',
+    question
+  ].join('\n');
+  const activeConfig = getModelConfigFromForm();
+
+  if (activeConfig.provider !== 'local' && !activeConfig.apiKey) {
+    log.textContent = `${userTask}\n\n[ MODEL DISABLED ] Configure an API key or select Local Llama.`;
+    setStatus('API KEY REQUIRED — CODON PROMPT SHOWN', 'err');
+    setTimeout(() => setStatus('READY'), 3500);
+    return;
+  }
+
+  setStatus(`QUERYING CODON ${codon.type}...`, 'work');
+  chrome.runtime.sendMessage({
+    type: 'EXPRESS_PHENOTYPE',
+    payload: { modelConfig: activeConfig, systemPrompt, userTask }
+  }, (resp) => {
+    if (!resp || resp.error) {
+      log.textContent = `[ ${codon.type} ERROR ] ${resp?.error || 'Unknown provider failure'}`;
+      setStatus('CODON QUERY FAILED', 'err');
+      setTimeout(() => setStatus('READY'), 4000);
+      return;
+    }
+    log.textContent = `[ ${codon.type} ]\n${resp.result || ''}`;
+    setStatus('CODON RESPONSE READY', 'ok');
+    setTimeout(() => setStatus('READY'), 2200);
+  });
+}
+
 // ─── PHENOTYPE RENDERING ──────────────────────────────────────────────────────
 function extractHTML(text) {
   const match = text.match(/```(?:html|HTML)?\n([\s\S]*?)```/i);
   if (match) return match[1];
   if (text.includes('<html') || text.includes('<!DOCTYPE')) return text;
   return text;
+}
+
+function renderHtmlInFrame(frame, html, previousUrl) {
+  if (!frame) return previousUrl;
+  if (previousUrl) URL.revokeObjectURL(previousUrl);
+  const doc = html.includes('<html') || html.includes('<!DOCTYPE')
+    ? html
+    : `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`;
+  const url = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
+  frame.removeAttribute('srcdoc');
+  frame.src = url;
+  return url;
 }
 
 function renderPhenotype(text) {
@@ -1097,7 +1270,7 @@ function showPhenoSource() {
 function showPhenoRender() {
   if (!lastPhenotype) return;
   const html = extractHTML(lastPhenotype);
-  document.getElementById('pheno-frame').srcdoc = html;
+  phenotypeBlobUrl = renderHtmlInFrame(document.getElementById('pheno-frame'), html, phenotypeBlobUrl);
   document.getElementById('pheno-text').style.display = 'none';
   document.getElementById('pheno-frame').style.display = 'block';
   document.getElementById('btn-pheno-render').classList.add('active');

@@ -36,7 +36,7 @@
     "default_title": "DOM Genetics Engine"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';"
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src 'self' blob:;"
   },
   "icons": {
     "16": "icons/icon16.png",

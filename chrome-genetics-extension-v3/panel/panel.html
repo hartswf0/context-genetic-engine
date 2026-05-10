@@ -97,6 +97,8 @@
     .codon-weight{font-size:9px;color:var(--dim);font-family:var(--mono);}
     .codon-payload{padding:8px;font-size:11px;color:var(--primary);font-family:var(--mono);line-height:1.5;}
     .codon-edit{width:100%;min-height:74px;background:#050505;border:0;border-top:1px solid var(--border);color:var(--primary);padding:8px;font-family:var(--mono);font-size:11px;line-height:1.5;resize:vertical;}
+    .codon-chat-row{display:grid;grid-template-columns:1fr auto;gap:6px;padding:6px 8px;border-top:1px solid var(--border);background:rgba(255,255,255,0.02);}
+    .codon-chat-input{min-width:0;background:#050505;border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:10px;padding:5px 6px;}
     .codon-tools{display:flex;gap:4px;align-items:center;}
     .codon-tools .pheno-btn{font-size:8px;padding:2px 6px;}
     .weight-input{width:48px;background:#050505;border:1px solid var(--border);border-radius:3px;color:var(--dim);font-family:var(--mono);font-size:9px;padding:2px 4px;}
@@ -196,9 +198,10 @@
         <button class="btn primary" id="btn-extract">⬇ Extract Genome</button>
         <button class="btn" id="btn-overlay" disabled>◈ Annotate DOM</button>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <button class="btn exon" id="btn-save" disabled>✦ Save to Lineage Vault</button>
         <button class="btn accent" id="btn-load-genome" disabled>→ Edit Genotype</button>
+        <button class="btn purple" id="btn-ai-encode" disabled>AI Encode</button>
       </div>
     </div>
 

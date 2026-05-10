@@ -19,8 +19,8 @@ saved genomes -> lineage vault -> parent selection -> Punnett cross -> expressed
 
 ## Panels
 
-- `Extract`: samples the active tab into codons and can annotate the live page.
-- `Genome`: edits the active genotype, toggles EXON/INTRON state, adds manual codons, and lets you query the genotype.
+- `Extract`: samples the active tab into raw DOM observations, then locally transcribes those observations into prompt-locus codons.
+- `Genome`: edits the active genotype, toggles EXON/INTRON state, adds manual codons, and lets you query the whole genotype or an individual codon.
 - `Field`: applies the active genotype to a target task and renders a completion artifact.
 - `Lineage`: stores and reloads genomes.
 - `Breed`: selects two parents and expresses crossed offspring.
@@ -40,8 +40,8 @@ Keys are stored in `chrome.storage.local`; do not commit real keys.
 1. Load this folder with `chrome://extensions` -> `Load unpacked`.
 2. Open a normal `https://` page.
 3. Click the extension icon.
-4. Extract the page.
-5. Click `Edit Genotype`; toggle a codon or add a manual codon.
+4. Extract the page. The active genotype should use prompt loci such as `RSN`, `EVD`, `OUT`, `FLR`, `FIT`, and `CST`, not raw `LAYOUT/COLOR` DOM observations.
+5. Click `Edit Genotype`; toggle a codon, ask an individual codon, or add a manual codon.
 6. Go to `Field`, add a target task, and click `Express Artifact`.
 7. Without a key, the panel should show the compiled prompt instead of crashing.
 8. Save the genome to lineage, reload the lineage tab, and confirm the card remains available.
