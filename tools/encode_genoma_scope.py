@@ -54,6 +54,8 @@ PROMPT_COLORS = {
 HEURISTICS = [
     "Parse static HTML source with no network and no API key.",
     "Measure visual, runtime, media, navigation, and prompt-language evidence.",
+    "For panel prototypes, include companion panel/background JavaScript because that is where prompt logic lives.",
+    "Prefer literal prompt constants, POML blocks, directives, and source codon payloads over generic summaries.",
     "Encode every prototype into two GENOMA Scope genomes: operational and prompt.",
     "Operational codons use Scope media/layout types: TXT, STY, CDE, HPL, IMG, CMT, ROW_S, COL_S, END.",
     "Prompt codons use instruction loci: RSN, EVD, OUT, FIT, FLR, CST, MUT, SEL.",
@@ -146,10 +148,15 @@ def prototype_rank(rel: str) -> int:
 
 
 def encode_prototype(rel: str) -> dict:
-    source = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+    html_source = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+    companion_files, companion_source = collect_companion_source(rel)
+    source = html_source
+    for file_rel, body in companion_source:
+        source += f"\n<script data-companion=\"{file_rel}\">\n{body}\n</script>\n"
     proto_id = make_id(rel)
-    title = first_match(source, r"<title[^>]*>([\s\S]*?)</title>") or Path(rel).name
+    title = first_match(html_source, r"<title[^>]*>([\s\S]*?)</title>") or Path(rel).name
     metrics = measure_source(source)
+    metrics["companionFiles"] = companion_files
     operational_genome = {
         "genome_id": f"{proto_id}::OPERATIONAL",
         "source_path": rel,
@@ -179,13 +186,37 @@ def encode_prototype(rel: str) -> dict:
     }
 
 
+def collect_companion_source(rel: str) -> tuple[list[str], list[tuple[str, str]]]:
+    candidates: list[str] = []
+    if rel.endswith("/panel/panel.html"):
+        panel_dir = Path(rel).parent
+        root_dir = panel_dir.parent
+        candidates.extend([
+            (panel_dir / "panel.js").as_posix(),
+            (root_dir / "background.js").as_posix(),
+        ])
+    elif rel == "DEV/GENOMA_CONTEXT.html":
+        candidates.extend(["DEV/app.js", "DEV/background.js", "DEV/content.js"])
+
+    files: list[str] = []
+    sources: list[tuple[str, str]] = []
+    for candidate in candidates:
+        path = ROOT / candidate
+        if path.exists():
+            files.append(candidate)
+            sources.append((candidate, path.read_text(encoding="utf-8", errors="replace")))
+    return files, sources
+
+
 def measure_source(source: str) -> dict:
     style_blocks = re.findall(r"<style\b[^>]*>([\s\S]*?)</style>", source, flags=re.I)
     script_blocks = re.findall(r"<script\b[^>]*>([\s\S]*?)</script>", source, flags=re.I)
     css = "\n".join(style_blocks)
     js = "\n".join(script_blocks)
     visible = strip_tags(re.sub(r"<script\b[^>]*>[\s\S]*?</script>", " ", re.sub(r"<style\b[^>]*>[\s\S]*?</style>", " ", source, flags=re.I), flags=re.I))
-    prompt_hits = collect_prompt_hits(source)
+    prompt_blocks = collect_prompt_blocks(source)
+    literal_codons = collect_literal_codons(source)
+    prompt_hits = collect_prompt_hits(source, prompt_blocks)
     api_hosts = unique([m.lower() for m in re.findall(r"https?://([^/\"'`)\s]+)", source, flags=re.I)])
     colors = unique(re.findall(r"#[0-9a-f]{3,8}\b|rgba?\([^)]+\)|hsla?\([^)]+\)", source, flags=re.I))[:20]
     fonts = unique([clean(m) for m in re.findall(r"font-family\s*:\s*([^;}{]+)", css, flags=re.I)])[:12]
@@ -222,7 +253,10 @@ def measure_source(source: str) -> dict:
         "colors": colors,
         "fontFamilies": fonts,
         "promptHits": prompt_hits,
+        "promptBlocks": prompt_blocks,
         "promptHitCount": len(prompt_hits),
+        "literalCodons": literal_codons,
+        "literalCodonCount": len(literal_codons),
         "codonWords": count(source, r"\bcodon\w*\b"),
         "genomeWords": count(source, r"\bgenom\w*\b"),
         "phenotypeWords": count(source, r"\bphenotyp\w*\b"),
@@ -254,27 +288,47 @@ def build_operational_sequence(rel: str, title: str, m: dict) -> list[dict]:
 
 
 def build_prompt_sequence(rel: str, title: str, m: dict) -> list[dict]:
-    has_prompt = m["promptHitCount"] + m["codonWords"] + m["genomeWords"] + m["theoryWords"] > 0
-    prompt_weight = clamp(35 + m["promptHitCount"] * 10 + m["theoryWords"] * 2 + m["codonWords"], 35, 98)
-    seq = [
-        codon("RSN", reasoning_payload(rel, title, m), evidence_list(m["promptHits"][:8]), prompt_weight),
-        codon("EVD", f"Ground interpretation in extracted source evidence: {m['words']} visible words, {m['scriptBlocks']} script blocks, {m['styleBlocks']} style blocks, {len(m['apiHosts'])} API hosts.", m["visibleTextSample"], clamp(45 + m["words"] / 80 + m["fetchCalls"] * 8, 45, 98)),
-        codon("OUT", output_payload(rel, m), f"buttons={m['buttons']}; inputs={m['inputs']}; media={m['images'] + m['iframes'] + m['canvas'] + m['videos']}", clamp(45 + m["buttons"] * 2 + m["inputs"] * 3 + m["iframes"] * 5, 45, 95)),
-        codon("FIT", fitness_payload(m), f"fitnessWords={m['selectionWords']}; mutationWords={m['mutationWords']}", clamp(40 + m["selectionWords"] * 5 + m["mutationWords"] * 4, 40, 98)),
-        codon("FLR", failure_payload(m), f"apiKeyRefs={m['apiKeyRefs']}; cspRisk={m['cspRisk']}; fetchCalls={m['fetchCalls']}", clamp(45 + m["apiKeyRefs"] * 10 + m["cspRisk"] * 6 + m["fetchCalls"] * 4, 45, 98)),
-        codon("CST", constraint_payload(m), f"cssVars={m['cssVars']}; mediaQueries={m['mediaQueries']}; inlineHandlers={m['inlineHandlers']}", clamp(40 + m["cssVars"] + m["mediaQueries"] * 5 + m["inlineHandlers"] * 2, 40, 95)),
+    literal = [
+        codon(
+            item["type"],
+            item["payload"],
+            f"literal codon in source: {item['source']}",
+            item["weight"],
+        )
+        for item in m.get("literalCodons", [])
     ]
-    if m["mutationWords"] > 0:
-        seq.append(codon("MUT", "Mutation channel exists: the page names variation, breeding, crossing, divergence, or codon edits. Preserve reversibility when changing it.", f"mutation signal count={m['mutationWords']}", clamp(45 + m["mutationWords"] * 5, 45, 98)))
-    else:
-        seq.append(codon("MUT", "No explicit mutation channel detected. Treat changes as proposed variants until a reversible mutation loop exists.", "", 35, True))
-    if m["selectionWords"] > 0:
-        seq.append(codon("SEL", "Selection pressure exists: compare outputs against stated fitness, scoring, survival, or selection language before inheriting changes.", f"selection signal count={m['selectionWords']}", clamp(45 + m["selectionWords"] * 6, 45, 98)))
-    else:
-        seq.append(codon("SEL", "No explicit selection protocol detected. Add a fitness comparison before calling a variant better.", "", 35, True))
+
+    blocks = [
+        codon(
+            block["locus"],
+            f"{block['label']}: {block['text']}",
+            f"{block['kind']} prompt block in source; label={block['label']}",
+            block["weight"],
+        )
+        for block in m.get("promptBlocks", [])
+    ]
+
+    seq = dedupe_codons(literal + blocks)
+
+    if seq:
+        seq.append(codon(
+            "EVD",
+            f"Prompt genome assembled from {len(literal)} literal codon payloads and {len(blocks)} source prompt blocks in {m['scriptBlocks']} script blocks.",
+            f"visibleWords={m['words']}; promptBlocks={len(blocks)}; literalCodons={len(literal)}; apiHosts={','.join(m['apiHosts']) or 'none'}",
+            clamp(60 + len(seq) * 2, 60, 98),
+        ))
+        return seq
+
+    has_prompt = m["promptHitCount"] + m["codonWords"] + m["genomeWords"] + m["theoryWords"] > 0
+    fallback = [
+        codon("RSN", reasoning_payload(rel, title, m), evidence_list(m["promptHits"][:8]), 45, True),
+        codon("EVD", f"No literal prompt blocks were extracted. Ground any future interpretation in source metrics: {m['words']} visible words, {m['scriptBlocks']} script blocks, {m['styleBlocks']} style blocks.", m["visibleTextSample"], 42, True),
+        codon("OUT", output_payload(rel, m), f"buttons={m['buttons']}; inputs={m['inputs']}; media={m['images'] + m['iframes'] + m['canvas'] + m['videos']}", 42, True),
+        codon("FLR", failure_payload(m), f"apiKeyRefs={m['apiKeyRefs']}; cspRisk={m['cspRisk']}; fetchCalls={m['fetchCalls']}", 45, True),
+    ]
     if not has_prompt:
-        seq.append(codon("CMT", "Prompt genome evidence is weak. This prototype may be mostly presentational or documentary.", "low prompt/codon/theory signal", 30, True))
-    return seq
+        fallback.append(codon("CMT", "Prompt genome evidence is weak. This prototype may be mostly presentational or documentary.", "low prompt/codon/theory signal", 30, True))
+    return fallback
 
 
 def reasoning_payload(rel: str, title: str, m: dict) -> str:
@@ -346,20 +400,168 @@ def constraint_payload(m: dict) -> str:
     return f"Constraints to preserve or expose: {', '.join(constraints)}."
 
 
-def collect_prompt_hits(source: str) -> list[str]:
-    patterns = [
-        r"const\s+([A-Z0-9_]*PROMPT[A-Z0-9_]*)\s*=\s*`([\s\S]{0,500}?)`",
-        r"const\s+([A-Z0-9_]*SYSTEM[A-Z0-9_]*)\s*=\s*`([\s\S]{0,500}?)`",
-        r"<system\b[^>]*>([\s\S]{0,500}?)</system>",
-        r"<directive\b[^>]*>([\s\S]{0,500}?)</directive>",
-        r"<intent\b[^>]*>([\s\S]{0,500}?)</intent>",
-    ]
-    hits: list[str] = []
-    for pattern in patterns:
-        for match in re.findall(pattern, source, flags=re.I):
-            value = match[-1] if isinstance(match, tuple) else match
-            hits.append(truncate(clean(strip_tags(value)), 220))
-    return unique([h for h in hits if h])[:18]
+def collect_prompt_blocks(source: str) -> list[dict]:
+    blocks: list[dict] = []
+
+    for match in re.finditer(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*`([\s\S]*?)`", source):
+        label = match.group(1)
+        text = clean(match.group(2))
+        if is_prompt_like(label, text):
+            blocks.append(prompt_block("js_template", label, text))
+
+    for match in re.finditer(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([\"'])([^\"'\n;]{40,1600})\2", source):
+        label = match.group(1)
+        text = clean(match.group(3))
+        if is_prompt_like(label, text):
+            blocks.append(prompt_block("js_string", label, text))
+
+    for tag in ["system", "directive", "intent", "role", "epistemology", "design_constraints"]:
+        for match in re.finditer(rf"<{tag}\b[^>]*>([\s\S]*?)</{tag}>", source, flags=re.I):
+            text = clean(strip_tags(match.group(1)))
+            if len(text) >= 24:
+                blocks.append(prompt_block(f"poml_{tag}", tag.upper(), text))
+
+    return dedupe_prompt_blocks(blocks)[:32]
+
+
+def collect_literal_codons(source: str) -> list[dict]:
+    codons: list[dict] = []
+    object_re = re.compile(r"\{[^{}]{0,900}?\btype\s*:\s*['\"]([A-Z_]{2,8})['\"][^{}]{0,900}?\}", flags=re.S)
+    json_object_re = re.compile(r"\{[^{}]{0,900}?\"type\"\s*:\s*\"([A-Z_]{2,8})\"[^{}]{0,900}?\}", flags=re.S)
+
+    for match in list(object_re.finditer(source)) + list(json_object_re.finditer(source)):
+        snippet = match.group(0)
+        type_ = match.group(1)
+        payload = extract_payload(snippet)
+        if payload and is_prompt_like(type_, payload):
+            codons.append({
+                "type": normalize_prompt_locus(type_),
+                "payload": payload,
+                "source": truncate(snippet, 180),
+                "weight": clamp(78 + len(payload) / 40, 78, 98),
+            })
+
+    return dedupe_literal_codons(codons)[:32]
+
+
+def prompt_block(kind: str, label: str, text: str) -> dict:
+    locus = classify_prompt_locus(label, text)
+    return {
+        "kind": kind,
+        "label": label,
+        "locus": locus,
+        "text": truncate(text, 900),
+        "weight": prompt_block_weight(label, text, kind),
+    }
+
+
+def is_prompt_like(label: str, text: str) -> bool:
+    haystack = f"{label} {text}".lower()
+    label_is_prompt = bool(re.search(r"prompt|system|poml|instruction|directive|kernel|genotype|breeder|meiosis|mutation|express|evaluate", label, flags=re.I))
+    text_is_prompt = (
+        "<poml" in haystack
+        or "<system" in haystack
+        or "<directive" in haystack
+        or "you are " in haystack
+        or "output exactly" in haystack
+        or "return only" in haystack
+        or "codon schema" in haystack
+        or "transcribe genotype" in haystack
+    )
+    literal_locus = label in PROMPT_COLORS and len(text) >= 12
+    return len(text) >= 20 and (label_is_prompt or text_is_prompt or literal_locus)
+
+
+def classify_prompt_locus(label: str, text: str) -> str:
+    haystack = f"{label} {text}".lower()
+    scores = {
+        "RSN": score(haystack, ["reason", "think", "theory", "step", "role", "epistemology", "naurian", "program-theory"]),
+        "EVD": score(haystack, ["evidence", "source", "medium", "context", "observation", "citation", "fidelity", "ground"]),
+        "OUT": score(haystack, ["output", "return", "json", "schema", "artifact", "html", "phenotype", "program text", "completion"]),
+        "FIT": score(haystack, ["fitness", "optimize", "success", "score", "quality", "judge", "benchmark"]),
+        "FLR": score(haystack, ["failure", "error", "missing", "blocked", "fallback", "hallucination", "risk", "csp"]),
+        "MUT": score(haystack, ["mutation", "mutate", "recombine", "diverge", "cross", "meiosis", "translocation", "breed"]),
+        "SEL": score(haystack, ["selection", "select", "dominant", "recessive", "survive", "winner", "offspring", "parent"]),
+        "CST": score(haystack, ["constraint", "design", "style", "contrast", "palette", "spatial", "interaction", "camera"]),
+    }
+    return max(scores.items(), key=lambda item: item[1])[0] if max(scores.values()) > 0 else "CST"
+
+
+def normalize_prompt_locus(type_: str) -> str:
+    if type_ in PROMPT_COLORS:
+        return type_
+    if type_ in {"STY", "STYLE", "STRUCTURE"}:
+        return "CST"
+    if type_ in {"OP", "OPS"}:
+        return "OUT"
+    return "CST"
+
+
+def prompt_block_weight(label: str, text: str, kind: str) -> float:
+    base = 84 if kind.startswith("js_") else 76
+    if re.search(r"PROMPT|SYSTEM|POML|GENOTYPE|TRANSCRIPTION", label, flags=re.I):
+        base += 8
+    if "schema" in text.lower() or "output" in text.lower():
+        base += 4
+    return clamp(base + len(text) / 220, 60, 98)
+
+
+def score(text: str, terms: list[str]) -> int:
+    return sum(text.count(term) for term in terms)
+
+
+def extract_payload(snippet: str) -> str:
+    for pattern in [
+        r"\bpayload\s*:\s*`([\s\S]*?)`",
+        r"\bpayload\s*:\s*'([^']{1,1000})'",
+        r'\bpayload\s*:\s*"([^"]{1,1000})"',
+        r'"payload"\s*:\s*"([^"]{1,1000})"',
+    ]:
+        match = re.search(pattern, snippet)
+        if match:
+            return clean(match.group(1))
+    return ""
+
+
+def dedupe_prompt_blocks(blocks: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for block in blocks:
+        key = (block["label"], block["text"][:180])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(block)
+    return out
+
+
+def dedupe_literal_codons(codons: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for item in codons:
+        key = (item["type"], item["payload"][:180])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def dedupe_codons(sequence: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for item in sequence:
+        key = (item["type"], item["payload"][:180])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out[:40]
+
+
+def collect_prompt_hits(source: str, prompt_blocks=None) -> list[str]:
+    blocks = prompt_blocks if prompt_blocks is not None else collect_prompt_blocks(source)
+    return unique([truncate(block["text"], 220) for block in blocks if block.get("text")])[:24]
 
 
 def summarize_prototype(rel: str, title: str, m: dict) -> str:

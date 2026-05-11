@@ -2,7 +2,7 @@
 
 This is the first local test of the claim that the suite can treat prototypes as genomes.
 
-The encoder does not call an LLM. It reads the repo's prototype HTML files and emits a deterministic GENOMA Scope atlas:
+The encoder does not call an LLM. It reads the repo's prototype HTML files, plus companion `panel.js` and `background.js` files for extension panels, and emits a deterministic GENOMA Scope atlas:
 
 - `data/genoma-scope-atlas.json`
 - `genoma-scope-atlas.html`
@@ -36,6 +36,8 @@ The script scans:
 - script blocks, functions, fetch calls, localStorage, `chrome.*` API use
 - API host references
 - prompt, system, intent, directive, codon, genome, mutation, selection, and theory language
+- literal prompt constants, POML blocks, model directives, and source codon payloads
+- companion side-panel/background scripts for extension prototypes
 - CSP/API-key risk signals
 
 ## Output Shape
@@ -63,6 +65,7 @@ The extra `evidence` and `weight` fields are intentionally retained. Existing Sc
 
 This creates a real testing layer:
 
+- It turns actual prompt material into prompt genomes, instead of only summarizing DOM traits.
 - It shows which prototypes actually contain prompt-genetic machinery.
 - It separates <operational genome> from <prompt genome>.
 - It exposes weak pages instead of pretending all pages are equally encoded.
